@@ -17,6 +17,10 @@
 * from actual sphere: mass: 4kg, max accel: 0.17 m / s/s
 * from tests: sphere: mass: ~4.6 - 4.8 kg, max accel: 0.008m/s^2
 * fuel use is related to accel, most efficient at max accel
+* fuel use: ~0.13%  per sec at F=0.01, * n thrusters used
+* fuel use: ~0.24%  per sec at F=0.02, * n thrusters used
+* fuel use: ~0.375% per sec at F=0.03, * n thrusters used
+* fuel use summary: ~n * 0.125%/0.01F = n * ( 12.5%) / (unit of F)
 */
 
 typedef struct position {
@@ -46,12 +50,8 @@ void init(){
     Sphere.state = SPS_UNITS;
     api.getMyZRState(Sphere.zrState);
     
-    firstSPS.X = 0.75;
-    firstSPS.Y = 0.75;
-    firstSPS.Z = 0.75;
-    secondSPS.X = 0.75;
-    secondSPS.Y = -0.75;
-    secondSPS.Z = 0.75;
+    firstSPS = {-0.6, 0.6, -0.6};
+    secondSPS = {0.0, -0.0, -0.0};
 }
 
 void unwrapPosition (float pos[3], position p) {
@@ -61,17 +61,9 @@ void unwrapPosition (float pos[3], position p) {
 }
 
 void loop() {
-    /*game.dropSPS();
-    game.dropSPS();
-    game.dropSPS();
-    float forces[3];
-    forces[0] = 200;
-    forces[1] = 0;
-    forces[2] = 0;
-    api.setForces(forces);
-    */
-    api.getMyZRState(Sphere.zrState);
+    DEBUG(("-----------------------"));
     
+    api.getMyZRState(Sphere.zrState);
     int c = game.getNumSPSHeld();
     int i = 3 - c;
     
@@ -90,9 +82,9 @@ void loop() {
         unwrapPosition(u, firstSPS);
         DEBUG(("first SPS unit : %f %f %f", u[0], u[1], u[2]));
         gotoPosition(position, u, velocity);
-        // placeSPSUnit(firstSPS);
+        placeSPSUnit(firstSPS);
     }
-    /*else if (i == 1) {
+    else if (i == 1) {
         float u[3];
         unwrapPosition(u, secondSPS);
         DEBUG(("second SPS unit : %f %f %f", u[0], u[1], u[2]));
@@ -108,8 +100,8 @@ void loop() {
         float u[3];
         unwrapPosition(u, target);
         gotoPosition(position, u, velocity);
-        placeSPSUnit(target);
-    }*/
+        //placeSPSUnit(target);
+    }
 }
 
 void evaluateNextItem () {
@@ -148,43 +140,51 @@ int evaluateMVPItemId () {
 }
 
 bool placeSPSUnit(position p) {
-    float MIN_DIST = 0.2;
-    if (fabsf(Sphere.zrState[0] - p.X) < MIN_DIST &&
-        fabsf(Sphere.zrState[1] - p.Y) < MIN_DIST &&
-        fabsf(Sphere.zrState[2] - p.Z) < MIN_DIST) {
+    float TOLERANCE = 0.05;
+    if (fabsf(Sphere.zrState[0] - p.X) < TOLERANCE &&
+        fabsf(Sphere.zrState[1] - p.Y) < TOLERANCE &&
+        fabsf(Sphere.zrState[2] - p.Z) < TOLERANCE) {
             game.dropSPS();
             return true;
         }
-        
     return false;
 }
     
-//add more parameters l8ter
+//todo: specify exit velocities
+//todo: parameterize all the tolerances / error things
 void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3]) {
-    float MAX_SPEED = 0.05;
-    float MIN_DIST = 0.5;
-    float ACCEL_FACTOR = 0.1;
+    float MAX_SPEED = 0.04;//4;         //max speed that should be obtained
+    float SAT_MASS = 4.7;               //mass in kg -- used for finding force to apply
+    float SAT_MAX_ACCEL = 0.007;//0.0075//how fast the sat can decelerate
+    float ACCEL_FACTOR = 0.18;//0.18;     //how fast to accelerate
+    float MIN_DIST_VEL_PADDING = 1;   //make the min dist a little bit larger
+    float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things
     
-    //float speed = mathVecMagnitude(velocity,3);
+    //api.setPositionTarget(destPosition);
+    //return;
+    
     float directionVec[3];
-    //mathVecSubtract(directionVec,destPosition,currentPos,3);
-    vecSubtract(directionVec, destPosition, currentPos);
-    DEBUG(("DEST : %f %f %f", destPosition[0], destPosition[1], destPosition[2]));
-    DEBUG(("CURR : %f %f %f", currentPos[0], currentPos[1], currentPos[2]));
+    vecSubtract(directionVec, destPosition, currentPos);     //mathVecSubtract(directionVec,destPosition,currentPos,3);
+    DEBUG(("DEST : X:%f Y:%f Z:%f", destPosition[0], destPosition[1], destPosition[2]));
     DEBUG(("DIRR : %f %f %f", directionVec[0], directionVec[1], directionVec[2]));
 
     float accel[3];
     for (int i = 0; i< 3; i++) {
+        float MIN_DIST = powf((velocity[i]*MIN_DIST_VEL_PADDING),2) / (2*SAT_MAX_ACCEL * (1.0/currentAccelerationFactor()));
+        MIN_DIST = fmax(MIN_MIN_DIST,MIN_DIST);
+        DEBUG(("%d HAS MIN DIST %f",i,MIN_DIST));
+        //bool within = fabsf(directionVec[i]) < MIN_DIST;
+        //DEBUG(("MDIST: %f, DIST: %f, ISLESS? %d",MIN_DIST,directionVec[i],within));
         if (fabsf(directionVec[i]) < MIN_DIST) {
-             accel[i] = - 4.7 * (11.0/8.0)*powf(velocity[i],2)/(2*directionVec[i]);
-            //accel[i] = -100;
-            //from vf^2 = vi^2 - 2a deltax
+            DEBUG(("%d WITHIN MIN DIST",i));
+            accel[i] = - SAT_MASS *sign(velocity[i])*currentAccelerationFactor()*(powf(velocity[i],2)/(2*fabsf(directionVec[i])));
+
         } 
-        else if (fabsf(velocity[i]) < MAX_SPEED) {
-          if (fabsf(directionVec[i]) > MIN_DIST) {
-            mathVecNormalize(directionVec,3);
+        else if (fabsf(velocity[i]) < MAX_SPEED || sign(velocity[i])!=sign(directionVec[i])) {
+            if (sign(velocity[i])!=sign(directionVec[i])) {
+                DEBUG(("%d OVERSHOT",i)); //note: it's hella expensive fuel-wise to overshoot
+            }
             accel[i] = directionVec[i] * ACCEL_FACTOR;
-          }
         }
         else {
           accel[i] = 0;
@@ -192,7 +192,7 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
     }
     
     api.setForces(accel);
-    DEBUG(("accel : %f %f %f", accel[0], accel[1], accel[2]));
+    DEBUG(("FORCE : X:%f Y:%f Z:%f", accel[0], accel[1], accel[2]));
 }
 
 void vecSubtract(float r[3], float a[3], float b[3]) {
@@ -208,6 +208,31 @@ void gotoRotation(float destRot[3]) {
 
 //depending on sps held / object held
 float currentAccelerationFactor() {
-    
+    float factor = 1;
+    switch(game.getNumSPSHeld()) {
+        case 0:
+            factor *= (1.0);
+            break;
+        case 1:
+            factor *= (9.0/8.0);
+            break;
+        case 2:
+            factor *= (5.0/4.0);
+            break;
+        case 3:
+            factor *= (11.0/8.0);
+            break;
+    }
+    return factor;
+    //also take into account objects held
+}
+
+int sign(float n) {
+    if (n < 0) {
+        return -1;
+    }
+    else {
+        return 1;
+    }
     
 }
