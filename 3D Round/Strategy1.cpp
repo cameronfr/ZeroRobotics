@@ -12,7 +12,7 @@
 
 /*
 * from actual sphere: mass: 4kg, max accel: 0.17 m / s/s
-* from tests: sphere: mass: ~4.6 - 4.8 kg, max accel: 0.008m/s^2
+* from tests: sphere: mass: ~4.6 - 4.8 kg, max accel: 0.008vm/s^2
 * fuel use is related to accel, most efficient at max accel
 * fuel use: ~0.13%  per sec at F=0.01, * n thrusters used
 * fuel use: ~0.24%  per sec at F=0.02, * n thrusters used
@@ -21,7 +21,7 @@
 */
 
 typedef struct position {
-    float X,Y,Z;
+    float pos[3];
     int itemID;
     bool isItem;
 } position;
@@ -41,7 +41,7 @@ typedef struct {
 
 sphere Sphere;
 
-position firstSPS;
+// position firstSPS;
 position secondSPS;
 position target;
 
@@ -50,20 +50,17 @@ void init() {
     Sphere.state = SPS_UNITS;
     api.getMyZRState(Sphere.zrState);
     
-    // firstSPS = {0.0, 0.15, 0, 0, false};
-    // secondSPS = {-0.45, 0.45, 0.0, 0, false};
-    firstSPS.X = 0.0;
-    firstSPS.Y = 0.15;
-    firstSPS.Z = 0;
-    secondSPS.X = -0.45;
-    secondSPS.Y = 0.45;
-    secondSPS.Z = 0.0;
-}
-
-void unwrapPosition(float pos[3], position p) {
-    pos[0] = p.X;
-    pos[1] = p.Y;
-    pos[2] = p.Z;
+    // firstSPS.pos[0] = 0.0;
+    // firstSPS.pos[1] = sign(Sphere.zrState[1]) * 0.15;
+    // firstSPS.pos[2] = 0;
+    
+    //TODO: TWEAK THIS
+    secondSPS.pos[0] = sign(Sphere.zrState[1])* -0.45;
+    secondSPS.pos[1] = 0.45;
+    secondSPS.pos[2] = sign(Sphere.zrState[1])* - 0.2;
+    target.itemID = -1;
+    
+    DEBUG(("BEEP BOP HELLO"));
 }
 
 void loop() {
@@ -83,70 +80,62 @@ void loop() {
     velocity[1] = Sphere.zrState[4];
     velocity[2] = Sphere.zrState[5];
     
+    //First SPS Unit
     if (i == 0) {
-        float u[3];
-        unwrapPosition(u, firstSPS);
-        DEBUG(("first SPS unit : %f %f %f", u[0], u[1], u[2]));
-        gotoPosition(position, u, velocity);
-        placeUnit(firstSPS, true, 0.05);
+        // gotoPosition(position, firstSPS.pos, velocity);
+        placeUnit(position, true, 0.05);
     } else if (i == 1) {
-        float u[3];
-        unwrapPosition(u, secondSPS);
-        DEBUG(("second SPS unit : %f %f %f", u[0], u[1], u[2]));
-        gotoPosition(position, u, velocity);
-        if (placeUnit(secondSPS, true, 0.05)) {
-            evaluateNextItem();
-            permuteItemToAccountForDistances(position);
-        }
+        //DEBUG(("second SPS unit : %f %f %f", u[0], u[1], u[2]));
+        gotoPosition(position, secondSPS.pos, velocity);
+        placeUnit(secondSPS.pos, true, 0.05);
     } else if (i == 2) {
-        if (game.hasItem(target.itemID) == 2) {
-            evaluateNextItem();
-            permuteItemToAccountForDistances(position);
+        if (game.hasItem(target.itemID) == 2 || target.itemID == -1) {
+            evaluateNextTarget();
         }
+        gotoPosition(position, target.pos, velocity);
         
-        float u[3];
-        unwrapPosition(u, target);
-        gotoPosition(position, u, velocity);
-        if (placeUnit(target, true, 0.05)) {
+        //Set the ZONE position
+        if (placeUnit(target.pos, true, 0.05)) {
             float zone[4];
             game.getZone(zone);
-            Sphere.zone.X = zone[0];
-            Sphere.zone.Y = zone[1];
-            Sphere.zone.Z = zone[2];
-            Sphere.state = GATHERING;
             
-            // evaluateNextItem();
-            // permuteItemToAccountForDistances(position);
+            Sphere.zone.pos[0] = zone[0];
+            Sphere.zone.pos[1] = zone[1];
+            Sphere.zone.pos[2] = zone[2];
+            Sphere.state = GATHERING;
         }
     } else {
         moveToPlaceItem(position, velocity);
     }
 }
 
-void moveToPlaceItem (float pos[3], float vel[3]) {
+void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
     if (Sphere.state == GATHERING) {
         if (game.hasItem(target.itemID) == 2) {
-            evaluateNextItem();
-            permuteItemToAccountForDistances(pos);
+            evaluateNextTarget();
         }
         
-        float u[3];
-        unwrapPosition(u, target);
-        if (!isSphereWithinDropLoc(pos)) {
-            gotoPosition(pos, u, vel);
-            DEBUG(("Shifting position..."));
-            DEBUG(("u %f %f %f", u[0], u[1], u[2]));
+        if (!isSphereWithinDockLoc(pos)) {
+            gotoPosition(pos, target.pos, vel);
+            //DEBUG(("Shifting position..."));
             return;
         }
         
-        if (mathVecMagnitude(vel, 3) > 0.01) {
-            float zeroVel[3] = {0, 0, 0};
+        //TODO: THIS IS NEEDED BUT SHOULDNT BE -- FIX THIS
+        else if (mathVecMagnitude(vel, 3) > 0.01) {
+            //float zeroVel[3] = {0, 0, 0};
+            float zeroVel[3];
+            //zeros(zeroVel);
+            zeroVel[0] = 0;
+            zeroVel[1] = 0;
+            zeroVel[2] = 0;
+            
             api.setVelocityTarget(zeroVel);
-            DEBUG(("Slowing speed..."));
+            //DEBUG(("Slowing speed..."));
             return;
         }
         
-        /*
+        
         float curAttitude[3] = { Sphere.zrState[6], Sphere.zrState[7], Sphere.zrState[8] };
         float destVec[3];
         mathVecSubtract(destVec, u, pos, 3);
@@ -156,44 +145,45 @@ void moveToPlaceItem (float pos[3], float vel[3]) {
             gotoRotation(destVec);
             return;
         }
-        */
+        
         
         //todo: error checking to handle failed docks
         bool docked = game.dockItem();
         if (docked) {
-            DEBUG(("DOCKED WITH ITEM! :)"));
+            //DEBUG(("DOCKED WITH ITEM! :)"));
             Sphere.state = PLACING;
         } else {
-            DEBUG(("DOCK FAILED! Please DEBUG me"));
+            //DEBUG(("DOCK FAILED! Please DEBUG me"));
         }
-    } else {
-        float u[3];
-        unwrapPosition(u, Sphere.zone);
+    } 
+    else if (Sphere.state==PLACING) {
         float cubePos[3];
         game.getItemLoc(cubePos, target.itemID);
 
-        gotoPosition(cubePos, u, vel);
-        //I changed tolerances here
-        if (fabsf(cubePos[0] - u[0]) < 0.017 &&
-            fabsf(cubePos[1] - u[1]) < 0.017 &&
-            fabsf(cubePos[2] - u[2]) < 0.017) {
-                
+        gotoPosition(cubePos, Sphere.zone.pos, vel);
+        if (isWithinManhattanDist(cubePos,Sphere.zone.pos,0.017)){ 
             game.dropItem();
             Sphere.state = GATHERING;
-            evaluateNextItem();
-            permuteItemToAccountForDistances(pos);
-            
+            evaluateNextTarget();
         }
     }
 }
 
-bool isSphereWithinDropLoc(float curPos[3]) {
-    float loc[3] = { 0, 0, 0 };
+
+//TODO: make moving so good that we don't need this
+bool isSphereWithinDockLoc(float curPos[3]) {
+    //float loc[3] = { 0, 0, 0 };
+    float loc[3];
+    //zeros(loc);
+    loc[0] = 0;
+    loc[1] = 0;
+    loc[2] = 0;
+    
     game.getItemLoc(loc,target.itemID);
     
     float destVec[3];
     mathVecSubtract(destVec, loc, curPos, 3);
-    float dist = sqrt(mathSquare(destVec[0]) + mathSquare(destVec[1]) + mathSquare(destVec[2]));
+    float dist = mathVecNormalize(destVec,3);
     
     DEBUG(("dist from center of cube: %f", dist));
     switch (target.itemID) {
@@ -219,17 +209,9 @@ bool isSphereWithinDropLoc(float curPos[3]) {
     return false;
 }
 
-void permuteItemToAccountForDistances(float curPos[3]) {
-    /* uncomment for experimentary code */
-    /*
-    float u[3];
-    unwrapPosition(u, target);
-    float destVec[3];
-    vecSubtract(destVec, u, curPos);
-    mathVecSubtract(destVec, u, curPos, 3);
-    mathVecNormalize(destVec, 3);*/
-    
-    float upperBound = 0.0; /* a.k.a middle bound */
+//TODO: adjust once rotation is implemented
+void adjustTargetPosition() {
+    float upperBound; /* a.k.a middle bound */
     switch (target.itemID) {
         case 0:
         case 1:
@@ -244,6 +226,7 @@ void permuteItemToAccountForDistances(float curPos[3]) {
             upperBound = .135;
             break;
         default:
+            upperBound = 0.0;
             break;
     }
     
@@ -252,69 +235,41 @@ void permuteItemToAccountForDistances(float curPos[3]) {
         attitude[i] = Sphere.zrState[i + 6] * upperBound;
     }
     
-    target.X = target.X - attitude[0];
-    target.Y = target.Y - attitude[1];
-    target.Z = target.Z - attitude[2];
-    DEBUG(("Permuted Loc: %f %f %f", target.X, target.Y, target.Z));
-    
-    /*
-    for (int i = 0; i < 3; i++) {
-        destVec[i] = fabsf(destVec[i] * upperBound);
-    }
-    
-    target.X = sign(destVec[0]) > 0 ? target.X - destVec[0] : target.X + destVec[0];
-    target.Y = sign(destVec[1]) > 0 ? target.Y - destVec[1] : target.Y + destVec[1];
-    target.Z = sign(destVec[2]) > 0 ? target.Z - destVec[2] : target.Z + destVec[2];
-    DEBUG(("Permuted Loc: %f %f %f", target.X, target.Y, target.Z));
-    */
+    target.pos[0] = target.pos[0] - attitude[0];
+    target.pos[1] = target.pos[1] - attitude[1];
+    target.pos[2] = target.pos[2] - attitude[2];
+    //DEBUG(("Permuted Loc: %f %f %f", target.X, target.Y, target.Z));
 }
 
-void evaluateNextItem () {
-    int itemID = evaluateMVPItemId();
-    float loc[3] = { 0, 0, 0 };
-    game.getItemLoc(loc,itemID);
+void evaluateNextTarget () {
+    int itemID = 0;
+    //TODO: IMPROVE THIS
+    for (int i = 0; i < 6; i++) {
+        if (game.hasItem(i) != 0 || game.itemInZone(i)) {
+            continue;
+        }
+        
+        itemID = i;
+        break;
+    }
     
-    target.X = loc[0];
-    target.Y = loc[1];
-    target.Z = loc[2];
+    float loc[3];
+    loc[0] = 0;
+    loc[1] = 0;
+    loc[2] = 0;
     
+    game.getItemLoc(target.pos,itemID);
     target.itemID = itemID;
     target.isItem = true;
     
-    DEBUG(("Item %d; %f %f %f", itemID, target.X, target.Y, target.Z));
+    adjustTargetPosition();
+    //DEBUG(("Item %d; %f %f %f", itemID, target.X, target.Y, target.Z));
 }
 
-int evaluateMVPItemId () {
-    /* by point */
-    /* if the sps unit is not done yet, go to farthest one */
-    float dist = game.getNumSPSHeld() != 0 ? 0 : 100;
-    int index = 0;
-    
-    for (int i = 0; i < 6; i++) {
-        if (game.hasItem(i) != 0 || game.itemInZone(i))
-            continue;
-            
-        /* premature break to return highest point-scoring cube */
-        return i;
-        
-        float loc[3];
-        game.getItemLoc(loc, i);
-        float d = mathSquare(loc[0] - Sphere.zrState[0]) + 
-                  mathSquare(loc[1] - Sphere.zrState[1]) +
-                  mathSquare(loc[2] - Sphere.zrState[2]);
-        
-        /* if sps unit is not done, find larger dist; else find smaller */
-        if ((game.getNumSPSHeld() != 0 && d >= dist) || d <= dist) {
-            dist = d;
-            index = i;
-        }
-    }
-    
-    return index;
-}
-
-bool placeUnit(position p, bool isSPS, float TOLERANCE) {
-    if (isUnitWithinToleranceDistance(p, TOLERANCE)) {
+bool placeUnit(float pos[3], bool isSPS, float TOLERANCE) {
+    //float u[3];
+    //unwrapPosition(u,p);
+    if (isWithinManhattanDist(Sphere.zrState,pos, TOLERANCE)) {
         if (isSPS)
             game.dropSPS();
         else
@@ -324,6 +279,15 @@ bool placeUnit(position p, bool isSPS, float TOLERANCE) {
     return false;
 }
 
+bool isWithinManhattanDist(float p1[3], float p2[3], float TOLERANCE) {
+    if (fabsf(p2[0] - p1[0]) < TOLERANCE &&
+        fabsf(p2[1] - p1[1]) < TOLERANCE &&
+        fabsf(p2[2] - p1[2]) < TOLERANCE)
+        return true;
+    return false;
+}
+
+/*
 bool isUnitWithinToleranceDistance(position p, float TOLERANCE) {
     // float TOLERANCE = 0.05;
     if (fabsf(Sphere.zrState[0] - p.X) < TOLERANCE &&
@@ -331,15 +295,15 @@ bool isUnitWithinToleranceDistance(position p, float TOLERANCE) {
         fabsf(Sphere.zrState[2] - p.Z) < TOLERANCE)
         return true;
     return false;
-}
+}*/
     
 //todo: specify exit velocities
 //todo: current problems: why doesn't setting MAX_SPEED to max or ACCEL_FACTOR to max make it faster
 //todo: add parameter that specifies fuel / time trade off
 void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3]) {
     float MAX_SPEED = 0.03;//4;         //max speed that should be obtained
-    float SAT_MASS = 4.8;//4.7           //mass in kg -- used for finding force to apply
-    float SAT_MAX_ACCEL = 0.007;//0.0075//how fast the sat can decelerate
+    float SAT_MASS = 4.7;//4.8;//4.7           //mass in kg -- used for finding force to apply
+    float SAT_MAX_ACCEL = 0.0065;//0.007;//0.0075//how fast the sat can decelerate
     float ACCEL_FACTOR = 0.18;//0.18;     //how fast to accelerate
     float MIN_DIST_VEL_PADDING = 1.2;   //make the min dist a little bit larger
     float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things
@@ -348,25 +312,31 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
     //api.setPositionTarget(destPosition);
     //return;
     
-    float directionVec[3];
-    vecSubtract(directionVec, destPosition, currentPos);
+    // float directionVec[3];
+    // mathVecSubtract(directionVec, destPosition, currentPos,3);
+    // float spherePos[3];
+    // spherePos[0] = Sphere.zrState[0];
+    // spherePos[1] = Sphere.zrState[1];
+    // spherePos[2] = Sphere.zrState[2];
+    // float addVec[3];
+    // mathVecAdd(addVec, directionVec, spherePos, 3);
+    // api.setPositionTarget(addVec);
+    // return;
     // DEBUG(("DEST : X:%f Y:%f Z:%f", destPosition[0], destPosition[1], destPosition[2]));
-     DEBUG(("DIRR : %f %f %f", directionVec[0], directionVec[1], directionVec[2]));
-
+     //DEBUG(("DIRR : %f %f %f", directionVec[0], directionVec[1], directionVec[2]));
+    
     float accel[3];
     for (int i = 0; i < 3; i++) {
-        float MIN_DIST = powf((velocity[i]*MIN_DIST_VEL_PADDING),2) / (2*SAT_MAX_ACCEL * (1.0/currentAccelerationFactor()));
-        MIN_DIST = fmax(MIN_MIN_DIST,MIN_DIST);
-        // DEBUG(("%d HAS MIN DIST %f",i,MIN_DIST));
-        //bool within = fabsf(directionVec[i]) < MIN_DIST;
-        //DEBUG(("MDIST: %f, DIST: %f, ISLESS? %d",MIN_DIST,directionVec[i],within));
+        float powfResult = powf((velocity[i] * MIN_DIST_VEL_PADDING), 2);
+        float divisor = 2 * SAT_MAX_ACCEL * (1.0 / currentAccelerationFactor());
+        float MIN_DIST = MIN_MIN_DIST > (powfResult / divisor) ? MIN_MIN_DIST : (powfResult/divisor);
         
         if (fabsf(directionVec[i]) < MIN_DIST) {
             // DEBUG(("%d WITHIN MIN DIST",i));
             accel[i] = - SAT_MASS *sign(velocity[i])*currentAccelerationFactor()*(powf(velocity[i],2)/(2*fabsf(directionVec[i])));
         } else if (fabsf(velocity[i]) < MAX_SPEED || sign(velocity[i])!=sign(directionVec[i])) {
             if (sign(velocity[i])!=sign(directionVec[i])) {
-                // DEBUG(("%d OVERSHOT",i)); //note: it's hella expensive fuel-wise to overshoot
+                DEBUG(("%d OVERSHOT",i)); //note: it's hella expensive fuel-wise to overshoot
             }
             accel[i] = directionVec[i] * ACCEL_FACTOR;
         } else {
@@ -376,16 +346,17 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
     
     api.setForces(accel);
     // DEBUG(("FORCE : X:%f Y:%f Z:%f", accel[0], accel[1], accel[2]));
+    
 }
 
-void vecSubtract(float r[3], float a[3], float b[3]) {
+/*void vecSubtract(float r[3], float a[3], float b[3]) {
     r[0] = a[0] - b[0];
     r[1] = a[1] - b[1];
     r[2] = a[2] - b[2];
-}
-
+}*/
+/*
 bool isRotationFinished (float curAttitude[3], float destVec[3]) {
-    float ROTATION_RADIUS = 0.25;
+    //float ROTATION_RADIUS = 0.25;
     
     // both curAttitude & destVec are unit vectors
     if (fabsf(curAttitude[0] - destVec[0]) < 0.25 &&
@@ -395,8 +366,8 @@ bool isRotationFinished (float curAttitude[3], float destVec[3]) {
     
     return false;
 }
-
-//add more parameters for efficiency later
+*/
+// //add more parameters for efficiency later
 void gotoRotation(float destRot[3]) {
     api.setAttitudeTarget(destRot);
 }
@@ -411,20 +382,14 @@ float currentAccelerationFactor() {
                 
             switch (target.itemID) {
                 case 0:
-                    factor *= (11.0/8.0);
-                    break;
                 case 1:
                     factor *= (11.0/8.0);
                     break;
                 case 2:
-                    factor *= (5.0/4.0);
-                    break;
                 case 3:
                     factor *= (5.0/4.0);
                     break;
                 case 4:
-                    factor *= (9.0/8.0);
-                    break;
                 case 5:
                     factor *= (9.0/8.0);
                     break;
@@ -448,9 +413,15 @@ float currentAccelerationFactor() {
 }
 
 int sign(float n) {
-    if (n < 0) {
-        return -1;
-    } else {
-        return 1;
-    }
+    return n > 0 ? 1 : -1;
 }
+
+float max(float a, float b){
+    return (a>b ? a : b);
+}
+//todo: make dynamic to size
+/*void zeros(float u[3]) {
+    for (int i = 0; i < 3;i++){
+        u[i] = 0;
+    }
+}*/
