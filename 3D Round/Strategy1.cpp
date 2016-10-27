@@ -57,7 +57,7 @@ void init() {
     // firstSPS.pos[2] = 0;
     
     //TODO: TWEAK AND FIX THIS
-    secondSPS.pos[0] = sign(Sphere.zrState[1])* -0.45;//-0.45;
+    secondSPS.pos[0] = sign(Sphere.zrState[1])* -0.5;//-0.45;
     secondSPS.pos[1] = sign(Sphere.zrState[1])* 0.5;
     secondSPS.pos[2] = 0;//sign(Sphere.zrState[1])* - 0.2;
     target.itemID = -1;
@@ -123,20 +123,12 @@ void loop() {
 }
 
 void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
-    //float curAttitude[3] = { Sphere.zrState[6], Sphere.zrState[7], Sphere.zrState[8] };
-    // float destVec[3];
-    // mathVecSubtract(destVec, realTarget.pos, pos, 3);
-    // mathVecNormalize(destVec, 3);
-    // gotoRotation(destVec);
     
-    //TODO: URGENT: RUNNING THIS CONSTANTLY GLITCHES THINGS OUT
-    //on second thought maybe it should only run once
     adjustTargetPosition();
     if (Sphere.state == GATHERING) {
         rotateToTarget(pos,realTarget.pos);
         //DEBUG(("TARGET %f %f %f",target.pos[0],target.pos[1],target.pos[2]));
 
-        
         
         if (game.hasItem(target.itemID) == 2) {
             evaluateNextTarget();
@@ -148,7 +140,6 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
             return;
         }
         
-        //TODO: THIS IS NEEDED BUT SHOULDNT BE -- FIX THIS
         //this might be interacting with the "adjustposition" function which is constantly called
         else if (mathVecMagnitude(vel, 3) > 0.01) {
             /*float zeroVel[3];
@@ -162,7 +153,7 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
         }
         
         //todo: error checking to handle failed docks
-        bool docked = game.dockItem();
+        bool docked = game.dockItem(target.itemID);
         if (docked) {
             //DEBUG(("DOCKED WITH ITEM! :)"));
             Sphere.state = PLACING;
@@ -229,6 +220,7 @@ bool isSphereWithinDockLoc(float curPos[3]) {
 void adjustTargetPosition() {
     //TODO: the way this adjust target method works is a bit messy cause it modifies global vars
     //DEBUG(("ADJUSTING TARGET POS"));
+    //TODO: experiment with chaning middle bound to upper bound
     float upperBound; /* a.k.a middle bound */
     switch (target.itemID) {
         case 0:
