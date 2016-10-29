@@ -92,7 +92,7 @@ void loop() {
     } else if (i == 1) {
         //DEBUG(("second SPS unit : %f %f %f", u[0], u[1], u[2]));
         gotoPosition(position, secondSPS.pos, velocity);
-        placeUnit(secondSPS.pos, true, 0.05);
+        placeUnit(secondSPS.pos, true, 0.015);
     } else if (i == 2) {
         if (/*game.hasItem(target.itemID) == 2 ||*/ target.itemID == -1) {
             evaluateNextTarget();
@@ -104,7 +104,7 @@ void loop() {
         moveToPlaceOrGetItem(position, velocity);
 
         //Set the ZONE position
-        if (placeUnit(target.pos, true, 0.01)) {
+        if (placeUnit(target.pos, true, 0.015)) {
             float zone[4];
             game.getZone(zone);
             
@@ -144,17 +144,17 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
             zeroVel[2] = 0;
             
             api.setVelocityTarget(zeroVel);*/
-            DEBUG(("Slowing speed..."));
+            //DEBUG(("Slowing speed..."));
             return;
         }
         
         //todo: error checking to handle failed docks
         bool docked = game.dockItem(target.itemID);
         if (docked) {
-            DEBUG(("DOCKED WITH ITEM! :)"));
+            //DEBUG(("DOCKED WITH ITEM! :)"));
             Sphere.state = PLACING;
         } else {
-            DEBUG(("DOCK FAILED! Please DEBUG me"));
+            //DEBUG(("DOCK FAILED! Please DEBUG me"));
         }
     } 
     else if (Sphere.state==PLACING) {
@@ -184,7 +184,7 @@ bool isSphereWithinDockLoc(float curPos[3]) {
     
     float destVec[3];
     mathVecSubtract(destVec, loc, curPos, 3);
-    float dist = mathVecNormalize(destVec,3);
+    float dist = mathVecMagnitude(destVec,3);
     
     //DEBUG(("dist from center of cube: %f", dist));
     switch (target.itemID) {
@@ -238,12 +238,12 @@ void adjustTargetPosition() {
         pos[i] = Sphere.zrState[i];
     }
     
-
+    game.getItemLoc(realTarget.pos,target.itemID);
     float dirVec[3];
     mathVecSubtract(dirVec, realTarget.pos, pos, 3);
     //attempt to stop target pos from changing when really close -- if statement is
     //can either do this or enable the setVelocityTarget to 0 in the other function
-    if (!(mathVecMagnitude(dirVec,3)<-1/*0.2*/)){
+    //if (!(mathVecMagnitude(dirVec,3)<-1/*0.2*/)){
       mathVecNormalize(dirVec, 3);
       dirVec[0] *= upperBound;
       dirVec[1] *= upperBound;
@@ -251,8 +251,8 @@ void adjustTargetPosition() {
       target.pos[0] = realTarget.pos[0] - dirVec[0];
       target.pos[1] = realTarget.pos[1] - dirVec[1];
       target.pos[2] = realTarget.pos[2] - dirVec[2];
-      DEBUG(("NEW TARGET, %d; %f %f %f", 0, target.pos[0], target.pos[1], target.pos[2]));
-    }
+      //DEBUG(("NEW TARGET, %d; %f %f %f", 0, target.pos[0], target.pos[1], target.pos[2]));
+    //}
     
     //TODO: IMPORTANT: confirm that this works
     float dirVec2[3];
@@ -266,12 +266,12 @@ void adjustTargetPosition() {
     Sphere.zoneTarget.pos[2] = Sphere.zone.pos[2] - dirVec2[2];
     
     //Print dist from cube to center of zone
-    float zoneItemDist[3];
+    /*float zoneItemDist[3];
     float itemLoc[3];
     game.getItemLoc(itemLoc,target.itemID);
     mathVecSubtract(zoneItemDist,itemLoc,Sphere.zone.pos,3);
     float zoneItemMag = mathVecMagnitude(zoneItemDist,3);
-    DEBUG(("ZONE ITEM DIST: %f",zoneItemMag));
+    *///DEBUG(("ZONE ITEM DIST: %f",zoneItemMag));
 
 }
 
@@ -367,12 +367,12 @@ bool isWithinManhattanDist(float p1[3], float p2[3], float TOLERANCE) {
 //todo: specify exit velocities
 //todo: add parameter that specifies fuel / time trade off
 void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3]) {
-    float MAX_SPEED = 0.04;//0.04;//0.035;//0.04;//4;         //max speed that should be obtained
+    float MAX_SPEED = 0.04; //max speed that should be obtained
     float ACCELERATION_FACTOR = 1; //what percentage of max accel should we accel at
     float SAT_MASS = 4.75 * currentMassFactor();//4.9;////4.85;//4.7;//4.8;//4.7;//4.8;//4.7 //normal mass in kg -- used for finding force to apply
-    float SAT_MAX_ACCEL = 0.008 / currentMassFactor();//0.0065;//0.007;//0.0075//how fast the sat can decelerate at normal mass
+    float SAT_MAX_ACCEL = 0.008 / currentMassFactor(); //how fast the sat can decelerate at normal mass
     float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things
-    float ZERO_VEL_DIST_THRESH = 0.005; //when to switch to zeroing velocity 
+    float ZERO_VEL_DIST_THRESH = 0.005; //when to switch to zeroing velocity instead of accelerating
     
     float directionVec[3];
     mathVecSubtract(directionVec, destPosition, currentPos,3);
@@ -396,7 +396,7 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
     //DEBUG(("DEST : X:%f Y:%f Z:%f", destPosition[0], destPosition[1], destPosition[2]));
     //DEBUG(("DIRR : %f %f %f", directionVec[0], directionVec[1], directionVec[2]));
     float MAX_1D_DIST = max(max(fabsf(directionVec[0]),fabsf(directionVec[1])),fabsf(directionVec[2]));
-    DEBUG(("MAX DIST DIM is %f",MAX_1D_DIST));
+    //DEBUG(("MAX DIST DIM is %f",MAX_1D_DIST));
 
     float force[3];
     for (int i = 0; i < 3; i++) {
@@ -423,7 +423,6 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
         MIN_DIST = MIN_MIN_DIST > MIN_DIST ? MIN_MIN_DIST : MIN_DIST; //take min of min_dist and min_min_dist
         //MIN DIST SUMMARY: the position we need to start decelerating at, given what the velocity and position of the next timestep would be worst case (so that we start decel 1 timsetep early as opposed to late)
     
-        DEBUG(("%d VEL %f",i,velocity[i]));
         if (fabsf(directionVec[i]) < ZERO_VEL_DIST_THRESH) {
             //if dist is low, try and cancel velocity
             force[i] = - velocity[i]* SAT_MASS;
