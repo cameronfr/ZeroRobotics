@@ -88,34 +88,30 @@ void loop() {
     //First SPS Unit
     if (i == 0) {
         // gotoPosition(position, firstSPS.pos, velocity);
-        placeUnit(position, true, 0.05);
+        placeUnit(position, true, 0.01);
     } else if (i == 1) {
         //DEBUG(("second SPS unit : %f %f %f", u[0], u[1], u[2]));
         gotoPosition(position, secondSPS.pos, velocity);
         placeUnit(secondSPS.pos, true, 0.05);
     } else if (i == 2) {
-        if (game.hasItem(target.itemID) == 2 || target.itemID == -1) {
+        if (/*game.hasItem(target.itemID) == 2 ||*/ target.itemID == -1) {
             evaluateNextTarget();
+            Sphere.state = GATHERING;
         }
         
-        gotoPosition(position, target.pos, velocity);
-        
-        // float curAttitude[3] = { Sphere.zrState[6], Sphere.zrState[7], Sphere.zrState[8] };
-        // float destVec[3];
-        // mathVecSubtract(destVec, realTarget.pos, position, 3);
-        // mathVecNormalize(destVec, 3);
-        // gotoRotation(destVec);
-        rotateToTarget(position,realTarget.pos);
+        ///gotoPosition(position, target.pos, velocity);
+        //rotateToTarget(position,realTarget.pos);
+        moveToPlaceOrGetItem(position, velocity);
 
         //Set the ZONE position
-        if (placeUnit(target.pos, true, 0.08)) {
+        if (placeUnit(target.pos, true, 0.01)) {
             float zone[4];
             game.getZone(zone);
             
             Sphere.zone.pos[0] = zone[0];
             Sphere.zone.pos[1] = zone[1];
             Sphere.zone.pos[2] = zone[2];
-            Sphere.state = GATHERING;
+            //Sphere.state = GATHERING;
         }
     } else {
         moveToPlaceOrGetItem(position, velocity);
@@ -128,11 +124,10 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
     if (Sphere.state == GATHERING) {
         rotateToTarget(pos,realTarget.pos);
         //DEBUG(("TARGET %f %f %f",target.pos[0],target.pos[1],target.pos[2]));
-
         
-        if (game.hasItem(target.itemID) == 2) {
+        /*if (game.hasItem(target.itemID) == 2) {
             evaluateNextTarget();
-        }
+        }*/
         
         if (!isSphereWithinDockLoc(pos)) {
             gotoPosition(pos, target.pos, vel);
@@ -142,41 +137,39 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
         
         //this might be interacting with the "adjustposition" function which is constantly called
         else if (mathVecMagnitude(vel, 3) > 0.01) {
+            gotoPosition(pos, target.pos, vel);
             /*float zeroVel[3];
             zeroVel[0] = 0;
             zeroVel[1] = 0;
             zeroVel[2] = 0;
             
-            api.setVelocityTarget(zeroVel);
-            DEBUG(("Slowing speed..."));*/
+            api.setVelocityTarget(zeroVel);*/
+            DEBUG(("Slowing speed..."));
             return;
         }
         
         //todo: error checking to handle failed docks
         bool docked = game.dockItem(target.itemID);
         if (docked) {
-            //DEBUG(("DOCKED WITH ITEM! :)"));
+            DEBUG(("DOCKED WITH ITEM! :)"));
             Sphere.state = PLACING;
         } else {
-            //DEBUG(("DOCK FAILED! Please DEBUG me"));
+            DEBUG(("DOCK FAILED! Please DEBUG me"));
         }
     } 
     else if (Sphere.state==PLACING) {
         float cubePos[3];
         game.getItemLoc(cubePos, target.itemID);
     
-        //added:
         rotateToTarget(pos,Sphere.zone.pos);
-        //changed from Sphere.zone.pos to Sphere.zoneTarget.pos
         gotoPosition(pos, Sphere.zoneTarget.pos, vel);
-        //THIS WONT WORK WELL WITH ROTATION BECAUSE THE CUBE WILL CHANGE POSITION AS IT ROTATES
-        //gotoPosition(cubePos, Sphere.zone.pos, vel);
-        if (isWithinManhattanDist(cubePos,Sphere.zone.pos,0.017)){ 
+        if (isWithinManhattanDist(cubePos,Sphere.zone.pos,0.02)){ 
             game.dropItem();
             Sphere.state = GATHERING;
             evaluateNextTarget();
         }
     }
+
 }
 
 
@@ -220,7 +213,7 @@ bool isSphereWithinDockLoc(float curPos[3]) {
 void adjustTargetPosition() {
     //TODO: the way this adjust target method works is a bit messy cause it modifies global vars
     //DEBUG(("ADJUSTING TARGET POS"));
-    //TODO: experiment with chaning middle bound to upper bound
+    //TODO: experiment with changing middle bound to upper bound
     float upperBound; /* a.k.a middle bound */
     switch (target.itemID) {
         case 0:
@@ -250,7 +243,7 @@ void adjustTargetPosition() {
     mathVecSubtract(dirVec, realTarget.pos, pos, 3);
     //attempt to stop target pos from changing when really close -- if statement is
     //can either do this or enable the setVelocityTarget to 0 in the other function
-    if (!(mathVecMagnitude(dirVec,3)<0.2)){
+    if (!(mathVecMagnitude(dirVec,3)<-1/*0.2*/)){
       mathVecNormalize(dirVec, 3);
       dirVec[0] *= upperBound;
       dirVec[1] *= upperBound;
@@ -258,7 +251,7 @@ void adjustTargetPosition() {
       target.pos[0] = realTarget.pos[0] - dirVec[0];
       target.pos[1] = realTarget.pos[1] - dirVec[1];
       target.pos[2] = realTarget.pos[2] - dirVec[2];
-      //DEBUG(("NEW TARGET, %d; %f %f %f", 0, target.pos[0], target.pos[1], target.pos[2]));
+      DEBUG(("NEW TARGET, %d; %f %f %f", 0, target.pos[0], target.pos[1], target.pos[2]));
     }
     
     //TODO: IMPORTANT: confirm that this works
@@ -271,6 +264,14 @@ void adjustTargetPosition() {
     Sphere.zoneTarget.pos[0] = Sphere.zone.pos[0] - dirVec2[0];
     Sphere.zoneTarget.pos[1] = Sphere.zone.pos[1] - dirVec2[1];
     Sphere.zoneTarget.pos[2] = Sphere.zone.pos[2] - dirVec2[2];
+    
+    //Print dist from cube to center of zone
+    float zoneItemDist[3];
+    float itemLoc[3];
+    game.getItemLoc(itemLoc,target.itemID);
+    mathVecSubtract(zoneItemDist,itemLoc,Sphere.zone.pos,3);
+    float zoneItemMag = mathVecMagnitude(zoneItemDist,3);
+    DEBUG(("ZONE ITEM DIST: %f",zoneItemMag));
 
 }
 
@@ -283,11 +284,8 @@ float itemDist(float pos[3],int itemID) {
     return dist;
 }
 
+//TODO: if not enough fuel to get to next cube after placing cube in zone, just block zone
 void evaluateNextTarget () {
-    //TODO TODAY (10/26)
-    //FIX SECOND SPS PLACEMENT LOGIC BASED ON WHETHER WE ARE RED OR BLUE
-    //GO FOR THE FARTHER YELLOW CUBE AFTER SECOND SPS
-    //AFTER STATE is NOT SPS_UNITS, GO FOR CUBE THAT IS EITHER 1. WITHIN THRESHOLD (i.e. close), or 2. HIGHEST PT VAL
     float pos[3];
     for (int i = 0; i < 3; i++) {
         pos[i] = Sphere.zrState[i];
@@ -301,10 +299,10 @@ void evaluateNextTarget () {
 
         float dist1 = itemDist(pos,1);
 
-        if (dist0 > dist1 && game.hasItem(0)==0) {
+        if (dist0 > dist1 /*&& game.hasItem(0)!=1*/) {
             itemID = 0;
         }
-        else if (dist1 > dist0 && game.hasItem(1)==0) {
+        else if (dist1 > dist0 /*&& game.hasItem(1)!=1*/) {
             itemID = 1;
         }
     }
@@ -330,7 +328,7 @@ void evaluateNextTarget () {
         
         if (!foundItem) {
             for (int i = 0; i < 6; i++) {
-                if (game.hasItem(i) != 0 || game.itemInZone(i)) {
+                if (/*game.hasItem(i) != 0 ||*/ game.itemInZone(i)) {
                     continue;
                 }
         
@@ -366,25 +364,23 @@ bool isWithinManhattanDist(float p1[3], float p2[3], float TOLERANCE) {
     return false;
 }
 
-//TODO: currently overshoots when it has to pass by the other sattelite
-//TODO: EASY FIX: take the timestep into account -- assume th
 //todo: specify exit velocities
-//todo: current problems: why doesn't setting MAX_SPEED to max or ACCEL_FACTOR to max make it faster
 //todo: add parameter that specifies fuel / time trade off
 void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3]) {
-    float MAX_SPEED = 0.035;//0.04;//4;         //max speed that should be obtained
-    float SAT_MASS = 4.9;////4.85;//4.7;//4.8;//4.7;//4.8;//4.7           //mass in kg -- used for finding force to apply
-    float SAT_MAX_ACCEL = 0.0065;//0.0065;//0.007;//0.0075//how fast the sat can decelerate
-    float ACCEL_FACTOR = 0.16;//0.18;     //how fast to accelerate
-    float MIN_DIST_VEL_PADDING = 1.4;//1.5;//1.4;//1.3;//1.2;   //make the min dist a little bit larger
+    float MAX_SPEED = 0.04;//0.04;//0.035;//0.04;//4;         //max speed that should be obtained
+    float ACCELERATION_FACTOR = 1; //what percentage of max accel should we accel at
+    float SAT_MASS = 4.75 * currentMassFactor();//4.9;////4.85;//4.7;//4.8;//4.7;//4.8;//4.7 //normal mass in kg -- used for finding force to apply
+    float SAT_MAX_ACCEL = 0.008 / currentMassFactor();//0.0065;//0.007;//0.0075//how fast the sat can decelerate at normal mass
     float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things
+    float ZERO_VEL_DIST_THRESH = 0.005; //when to switch to zeroing velocity 
     
     float directionVec[3];
     mathVecSubtract(directionVec, destPosition, currentPos,3);
-    
+
     //TODO: parameterize and find good parameter, or don't use it at all
     //Switches to PID  when under certain distance
-    if (mathVecMagnitude(directionVec,3) < 0.1) {
+    //do this individually for each vector not as a whole
+    /*if (mathVecMagnitude(directionVec,3) < 0.00) {
         float spherePos[3];
         spherePos[0] = Sphere.zrState[0];
         spherePos[1] = Sphere.zrState[1];
@@ -392,34 +388,59 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
         float addVec[3];
         mathVecAdd(addVec, directionVec, spherePos, 3);
         api.setPositionTarget(addVec);
-        //DEBUG(("Using PID position control..."));
+        DEBUG(("Using PID position control..."));
         return;
         
-    }
+    }*/
+    
     //DEBUG(("DEST : X:%f Y:%f Z:%f", destPosition[0], destPosition[1], destPosition[2]));
     //DEBUG(("DIRR : %f %f %f", directionVec[0], directionVec[1], directionVec[2]));
-    
-    float accel[3];
+    float MAX_1D_DIST = max(max(fabsf(directionVec[0]),fabsf(directionVec[1])),fabsf(directionVec[2]));
+    DEBUG(("MAX DIST DIM is %f",MAX_1D_DIST));
+
+    float force[3];
     for (int i = 0; i < 3; i++) {
-        float powfResult = mathSquare(velocity[i] * MIN_DIST_VEL_PADDING);
-        float divisor = 2 * SAT_MAX_ACCEL * (1.0 / currentAccelerationFactor());
-        float MIN_DIST = MIN_MIN_DIST > (powfResult / divisor) ? MIN_MIN_DIST : (powfResult/divisor);
         
-        if (fabsf(directionVec[i]) < MIN_DIST) {
-            accel[i] = - SAT_MASS *sign(velocity[i])*currentAccelerationFactor()*(mathSquare(velocity[i])/(2*fabsf(directionVec[i])));
-            //DEBUG(("%d WITHIN MIN DIST, DECEL AT %f",i,(accel[i]/SAT_MASS)));
-        } else if (fabsf(velocity[i]) < MAX_SPEED || sign(velocity[i])!=sign(directionVec[i])) {
-            /*if (sign(velocity[i])!=sign(directionVec[i])) {
-                DEBUG(("%d OVERSHOT",i)); //note: it's hella expensive fuel-wise to overshoot
-            }*/
-            accel[i] = directionVec[i] * ACCEL_FACTOR;
+        //Factor that describes speed/accel in relation to other dimensions (i.e., keep vel / accel prop to dist)
+        float PROPORTIONAL_FACTOR = fabsf(directionVec[i]/MAX_1D_DIST);
+        float DIM_MAX_SPEED = MAX_SPEED * PROPORTIONAL_FACTOR;
+        
+        //THIS WOULD TOP UP VELOCITY AS OPPOSED TO SOMETIMES GOING OVER, NOT WORTH THE CODESIZE
+        //TESTED: at zone pos 60 -50 60 it has 5% more fuel at end with same speed, 0.16 more points
+        /*float accel_amount = (SAT_MAX_ACCEL > (DIM_MAX_SPEED-fabsf(velocity[i]))/currentMassFactor()) 
+                                && (sign(directionVec[i]) == sign(velocity[i]))
+                                ? (DIM_MAX_SPEED-fabsf(velocity[i]))/currentMassFactor() : SAT_MAX_ACCEL;
+        float est_accel = sign(directionVec[i])*ACCELERATION_FACTOR*PROPORTIONAL_FACTOR*accel_amount;*/
+        
+        //Calculate both what we woud accel and decel the sattelite at (which we use depends on min_dist)
+        float est_accel = sign(directionVec[i])*ACCELERATION_FACTOR*PROPORTIONAL_FACTOR*SAT_MAX_ACCEL;
+        float est_decel = - sign(velocity[i]) * (mathSquare(velocity[i])/(2*fabsf(directionVec[i])));
+
+        //Calculate the distance at which we need to start decelerating
+        float powfResult = mathSquare(fabsf(velocity[i]) + fabsf(est_accel)); //v = v_current + a*(1 timestep ahead)
+        float divisor = 2 * (SAT_MAX_ACCEL);
+        float MIN_DIST = (powfResult/divisor)+(fabsf(velocity[i])+0.5*fabsf(est_accel));// dist + v_o*t + 0.5*a*t^2
+        MIN_DIST = MIN_MIN_DIST > MIN_DIST ? MIN_MIN_DIST : MIN_DIST; //take min of min_dist and min_min_dist
+        //MIN DIST SUMMARY: the position we need to start decelerating at, given what the velocity and position of the next timestep would be worst case (so that we start decel 1 timsetep early as opposed to late)
+    
+        DEBUG(("%d VEL %f",i,velocity[i]));
+        if (fabsf(directionVec[i]) < ZERO_VEL_DIST_THRESH) {
+            //if dist is low, try and cancel velocity
+            force[i] = - velocity[i]* SAT_MASS;
+            //DEBUG(("%d ZEROING VEL",i));
+        } else if (fabsf(directionVec[i]) < MIN_DIST) {
+            force[i] = est_decel * SAT_MASS;
+            //DEBUG(("%i DECELING at %f, DIST %f, MIN_DIST %f",i,force[i]/SAT_MASS,directionVec[i],MIN_DIST));
+        } else if (fabsf(velocity[i]) < DIM_MAX_SPEED || sign(velocity[i])!=sign(directionVec[i])) {
+            force[i] = est_accel * SAT_MASS;
+            //DEBUG(("%i ACCELING at %f, DIST %f, MIN_DIST %f",i,force[i]/SAT_MASS,directionVec[i],MIN_DIST));
         } else {
-          accel[i] = 0;
+            force[i] = 0;
         }
     }
     
-    api.setForces(accel);
-    // DEBUG(("FORCE : X:%f Y:%f Z:%f", accel[0], accel[1], accel[2]));
+    api.setForces(force);
+    // DEBUG(("FORCE : X:%f Y:%f Z:%f", force[0], force[1], force[2]));
     
 }
 
@@ -449,13 +470,22 @@ void rotateToTarget(float currentPos[3],float targetPos[3]) {
     mathVecNormalize(destVec, 3);
     gotoRotation(destVec);
 }
+/*
+int maxAbsIndex(float vec[3]) {
+    int max;
+    max = fabsf(vec[0])>fabsf(vec[1]) ? 0 : 1;
+    max = fabsf(vec[max]) > fabsf(vec[2]) ? max : 2;
+    return max;
+}
+*/
 
 void gotoRotation(float destRot[3]) {
     api.setAttitudeTarget(destRot);
 }
 
 //depending on sps held / object held
-float currentAccelerationFactor() {
+//todo: should be currentMassFactor to avoid confusion
+float currentMassFactor() {
     float factor = 1;
     switch(game.getNumSPSHeld()) {
         case 0:
