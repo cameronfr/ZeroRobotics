@@ -46,6 +46,7 @@ sphere Sphere;
 position secondSPS;
 position target;
 position realTarget;
+position thirdSPS;
 
 //Declare any variables shared between functions here
 void init() {
@@ -57,9 +58,18 @@ void init() {
     // firstSPS.pos[2] = 0;
     
     //TODO: TWEAK AND FIX THIS
-    secondSPS.pos[0] = sign(Sphere.zrState[1])* -0.5;//-0.45;
-    secondSPS.pos[1] = sign(Sphere.zrState[1])* 0.5;
+    int side = sign(Sphere.zrState[1]);
+    
+    secondSPS.pos[0] = side * -0.5;//-0.45;
+    secondSPS.pos[1] = side * 0.5;
     secondSPS.pos[2] = 0;//sign(Sphere.zrState[1])* - 0.2;
+    
+    // thirdSPS.pos[0] = side *-.23;
+    // thirdSPS.pos[1] = side *-.23;
+    // thirdSPS.pos[2] = side *-.23;
+
+    
+    
     target.itemID = -1;
     
     DEBUG(("BEEP BOP HELLO"));
@@ -94,33 +104,38 @@ void loop() {
         gotoPosition(position, secondSPS.pos, velocity);
         placeUnit(secondSPS.pos, true, 0.015);
     } else if (i == 2) {
-        if (/*game.hasItem(target.itemID) == 2 ||*/ target.itemID == -1) {
-            evaluateNextTarget();
+        if (target.itemID == -1) {
+            evaluateNextTarget(position);
             Sphere.state = GATHERING;
         }
-        
-        ///gotoPosition(position, target.pos, velocity);
-        //rotateToTarget(position,realTarget.pos);
-        moveToPlaceOrGetItem(position, velocity);
-
-        //Set the ZONE position
-        if (placeUnit(target.pos, true, 0.015)) {
-            float zone[4];
-            game.getZone(zone);
-            
-            Sphere.zone.pos[0] = zone[0];
-            Sphere.zone.pos[1] = zone[1];
-            Sphere.zone.pos[2] = zone[2];
-            //Sphere.state = GATHERING;
-        }
+        /*if (game.hasItem(target.itemID) == 2) {
+            gotoPosition(position, thirdSPS.pos,velocity);
+            if (placeUnit(thirdSPS.pos,true,0.015)) {
+                setZoneLocation();
+            }
+        }*/
+       // else {
+            moveToPlaceOrGetItem(position, velocity);
+            if (placeUnit(target.pos, true, 0.015)) {
+                setZoneLocation();
+            }
+        //}
     } else {
         moveToPlaceOrGetItem(position, velocity);
     }
 }
 
+void setZoneLocation() {
+    float zone[4];
+    game.getZone(zone);
+    Sphere.zone.pos[0] = zone[0];
+    Sphere.zone.pos[1] = zone[1];
+    Sphere.zone.pos[2] = zone[2];
+}
+
 void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
     
-    adjustTargetPosition();
+    adjustTargetPosition(pos);
     if (Sphere.state == GATHERING) {
         rotateToTarget(pos,realTarget.pos);
         //DEBUG(("TARGET %f %f %f",target.pos[0],target.pos[1],target.pos[2]));
@@ -129,24 +144,16 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
             evaluateNextTarget();
         }*/
         
-        if (!isSphereWithinDockLoc(pos)) {
+        if (!isSphereWithinDockLoc(pos) || mathVecMagnitude(vel, 3) > 0.01 || game.hasItem(target.itemID) == 2) {
             gotoPosition(pos, target.pos, vel);
             //DEBUG(("Shifting position... to %f %f %f",target.pos[0],target.pos[1],target.pos[2]));
             return;
         }
         
-        //this might be interacting with the "adjustposition" function which is constantly called
-        else if (mathVecMagnitude(vel, 3) > 0.01) {
-            gotoPosition(pos, target.pos, vel);
-            /*float zeroVel[3];
-            zeroVel[0] = 0;
-            zeroVel[1] = 0;
-            zeroVel[2] = 0;
-            
-            api.setVelocityTarget(zeroVel);*/
-            //DEBUG(("Slowing speed..."));
-            return;
-        }
+        // else if (mathVecMagnitude(vel, 3) > 0.01) {
+        //     gotoPosition(pos, target.pos, vel);
+        //     return;
+        // }
         
         //todo: error checking to handle failed docks
         bool docked = game.dockItem(target.itemID);
@@ -166,7 +173,7 @@ void moveToPlaceOrGetItem (float pos[3], float vel[3]) {
         if (isWithinManhattanDist(cubePos,Sphere.zone.pos,0.02)){ 
             game.dropItem();
             Sphere.state = GATHERING;
-            evaluateNextTarget();
+            evaluateNextTarget(pos);
         }
     }
 
@@ -210,7 +217,7 @@ bool isSphereWithinDockLoc(float curPos[3]) {
     return false;
 }
 
-void adjustTargetPosition() {
+void adjustTargetPosition(float pos[3]) {
     //TODO: the way this adjust target method works is a bit messy cause it modifies global vars
     //DEBUG(("ADJUSTING TARGET POS"));
     //TODO: experiment with changing middle bound to upper bound
@@ -233,10 +240,12 @@ void adjustTargetPosition() {
             break;
     }
     
-    float pos[3];
-    for (int i = 0; i < 3; i++) {
-        pos[i] = Sphere.zrState[i];
-    }
+    // float pos[3];
+    // for (int i = 0; i < 3; i++) {
+    //     pos[i] = Sphere.zrState[i];
+    // }
+    
+    //float upperBoundVec
     
     game.getItemLoc(realTarget.pos,target.itemID);
     float dirVec[3];
@@ -248,10 +257,10 @@ void adjustTargetPosition() {
       dirVec[0] *= upperBound;
       dirVec[1] *= upperBound;
       dirVec[2] *= upperBound;
+      mathVecSubtract(target.pos,realTarget.pos,dirVec,3);
       target.pos[0] = realTarget.pos[0] - dirVec[0];
       target.pos[1] = realTarget.pos[1] - dirVec[1];
       target.pos[2] = realTarget.pos[2] - dirVec[2];
-      //DEBUG(("NEW TARGET, %d; %f %f %f", 0, target.pos[0], target.pos[1], target.pos[2]));
     //}
     
     //TODO: IMPORTANT: confirm that this works
@@ -261,9 +270,10 @@ void adjustTargetPosition() {
     dirVec2[0] *= upperBound;
     dirVec2[1] *= upperBound;
     dirVec2[2] *= upperBound;
-    Sphere.zoneTarget.pos[0] = Sphere.zone.pos[0] - dirVec2[0];
-    Sphere.zoneTarget.pos[1] = Sphere.zone.pos[1] - dirVec2[1];
-    Sphere.zoneTarget.pos[2] = Sphere.zone.pos[2] - dirVec2[2];
+    mathVecSubtract(Sphere.zoneTarget.pos,Sphere.zone.pos,dirVec2,3);
+    // Sphere.zoneTarget.pos[0] = Sphere.zone.pos[0] - dirVec2[0];
+    // Sphere.zoneTarget.pos[1] = Sphere.zone.pos[1] - dirVec2[1];
+    // Sphere.zoneTarget.pos[2] = Sphere.zone.pos[2] - dirVec2[2];
     
     //Print dist from cube to center of zone
     /*float zoneItemDist[3];
@@ -285,26 +295,24 @@ float itemDist(float pos[3],int itemID) {
 }
 
 //TODO: if not enough fuel to get to next cube after placing cube in zone, just block zone
-void evaluateNextTarget () {
-    float pos[3];
-    for (int i = 0; i < 3; i++) {
-        pos[i] = Sphere.zrState[i];
-    }
+void evaluateNextTarget (float pos[3]) {
+    //float pos[3];
+    //for (int i = 0; i < 3; i++) {
+    //    pos[i] = Sphere.zrState[i];
+    // }
     
     int itemID = 0;
     
     if(Sphere.state == SPS_UNITS) {
-    
-        float dist0 = itemDist(pos,0);
-
-        float dist1 = itemDist(pos,1);
-
-        if (dist0 > dist1 /*&& game.hasItem(0)!=1*/) {
-            itemID = 0;
-        }
-        else if (dist1 > dist0 /*&& game.hasItem(1)!=1*/) {
+        
+        //When placing third SPS, go for cube that isn't already taken
+        if (game.hasItem(0) !=0 ) {
             itemID = 1;
         }
+        else {
+            itemID = 0;
+        }
+        
     }
     else {
         
@@ -338,11 +346,11 @@ void evaluateNextTarget () {
         }
     }
     
-    game.getItemLoc(realTarget.pos,itemID);
+    //game.getItemLoc(realTarget.pos,itemID);
     target.itemID = itemID;
     target.isItem = true;
     //DEBUG(("NEW TARGET, %d; %f %f %f", itemID, target.pos[0], target.pos[1], target.pos[2]));
-    adjustTargetPosition();
+    adjustTargetPosition(pos);
 }
 
 bool placeUnit(float pos[3], bool isSPS, float TOLERANCE) {
@@ -367,7 +375,7 @@ bool isWithinManhattanDist(float p1[3], float p2[3], float TOLERANCE) {
 //todo: specify exit velocities
 //todo: add parameter that specifies fuel / time trade off
 void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3]) {
-    float MAX_SPEED = 0.04; //max speed that should be obtained
+    float MAX_SPEED =0.04;// 0.04; //max speed that should be obtained
     float ACCELERATION_FACTOR = 1; //what percentage of max accel should we accel at
     float SAT_MASS = 4.75 * currentMassFactor();//4.9;////4.85;//4.7;//4.8;//4.7;//4.8;//4.7 //normal mass in kg -- used for finding force to apply
     float SAT_MAX_ACCEL = 0.008 / currentMassFactor(); //how fast the sat can decelerate at normal mass
@@ -407,10 +415,13 @@ void gotoPosition(float currentPos[3], float destPosition[3], float velocity[3])
         
         //THIS WOULD TOP UP VELOCITY AS OPPOSED TO SOMETIMES GOING OVER, NOT WORTH THE CODESIZE
         //TESTED: at zone pos 60 -50 60 it has 5% more fuel at end with same speed, 0.16 more points
+        //TESTED: in multiplayer seems to be causing sat to overshoot, because it underestimates possibly vel caused by forced accel bcz close to other sphere
         /*float accel_amount = (SAT_MAX_ACCEL > (DIM_MAX_SPEED-fabsf(velocity[i]))/currentMassFactor()) 
                                 && (sign(directionVec[i]) == sign(velocity[i]))
                                 ? (DIM_MAX_SPEED-fabsf(velocity[i]))/currentMassFactor() : SAT_MAX_ACCEL;
         float est_accel = sign(directionVec[i])*ACCELERATION_FACTOR*PROPORTIONAL_FACTOR*accel_amount;*/
+        
+        //0.45t 0.4t 0.4ntp
         
         //Calculate both what we woud accel and decel the sattelite at (which we use depends on min_dist)
         float est_accel = sign(directionVec[i])*ACCELERATION_FACTOR*PROPORTIONAL_FACTOR*SAT_MAX_ACCEL;
