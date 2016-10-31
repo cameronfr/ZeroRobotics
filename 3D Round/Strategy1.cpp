@@ -258,9 +258,9 @@ void adjustTargetPosition(float pos[3]) {
       dirVec[1] *= upperBound;
       dirVec[2] *= upperBound;
       mathVecSubtract(target.pos,realTarget.pos,dirVec,3);
-      target.pos[0] = realTarget.pos[0] - dirVec[0];
-      target.pos[1] = realTarget.pos[1] - dirVec[1];
-      target.pos[2] = realTarget.pos[2] - dirVec[2];
+      //target.pos[0] = realTarget.pos[0] - dirVec[0];
+      //target.pos[1] = realTarget.pos[1] - dirVec[1];
+      //target.pos[2] = realTarget.pos[2] - dirVec[2];
     //}
     
     //TODO: IMPORTANT: confirm that this works
