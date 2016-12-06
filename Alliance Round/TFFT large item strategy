@@ -56,7 +56,7 @@ void loop() {
 void placeSPS() {
     float startDist;
     float SPSpos[3];
-    //float vecAtt[3];
+    float vecAtt[3];
     float vecy[3];
     float vecm[3];
 
@@ -64,15 +64,14 @@ void placeSPS() {
     startDist = mathVecMagnitude(vecm, 3);
     for (int i = 0; i < 3; i++) {
         vecm[i] = vecm[i]/2;
-        //vecAtt[i] = item[ID][i+6];
-        vecy[i] = vecm[i]+i;
+        vecAtt[i] = item[ID][i+6];
     }
-    //mathVecAdd(vecAtt, vecAtt, item[ID], 3);
-    //mathVecCross(vecy, vecAtt, vecm);
+    mathVecCross(vecy, vecAtt, vecm);
     mathVecCross(SPSpos, vecm, vecy);
+    mathVecAdd(vecAtt, vecAtt, item[ID], 3);
     mathVecAdd(vecm, vecm, initState, 3);
     mathVecNormalize(SPSpos, 3);
-    multVec(SPSpos, 0.18f/startDist + 0.05f);
+    multVec(SPSpos, 0.18f/startDist + 0.2f);
     mathVecAdd(SPSpos, SPSpos, vecm, 3);
 
     if (game.getNumSPSHeld() == 2) {
