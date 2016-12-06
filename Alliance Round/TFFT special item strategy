@@ -160,7 +160,7 @@ void reachZone() {
     if (dist(item[ID], zone) < 0.04f) {
         game.dropItem();
         step++;
-        step == 1 ? ID = 6 : ID = closestItem(0,5); 
+        step == 1 ? ID = 6 : ID = closestItem(0, 5);
     }
 }
 
