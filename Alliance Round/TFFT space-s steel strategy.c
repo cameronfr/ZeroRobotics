@@ -9,6 +9,7 @@ float distanceZone;
 float item[9][12];
 float vec[9][3];
 float distance[9];
+float SPSpos[3];
 float distanceSPS;
 int t;
 int step;
@@ -46,44 +47,59 @@ void loop() {
         mathVecSubtract(vecZone, zone, myState, 3);
         distanceZone = mathVecMagnitude(vecZone, 3);
     }
-    if (t == 0) {
-        ID = closestItem(0, 1);
-    }
 
-    step == 0 ? placeSPS() : pickItem();
+    if (step == 0) {
+        ID = closestItem(0, 1);
+        placeSPS();
+    }
+    else if (step == 1) {
+        ID = closestItem(0, 1);
+        pickItem();
+    }
+    else {
+        ID = closestItem(0, 5);
+        pickItem();
+    }
+    DEBUG(("step = %d; ID = %d", step, ID));
 }
 
 void placeSPS() {
-    float startDist;
-    float SPSpos[3];
-    float vecAtt[3];
-    float vecy[3];
-    float vecm[3];
-
-    mathVecSubtract(vecm, item[ID], initState, 3);
-    startDist = mathVecMagnitude(vecm, 3);
+    float newTarget[3];
+    char x = 0;
+    
+    mathVecSubtract(newTarget, item[ID], initState, 3);
+    mathVecNormalize(newTarget, 3);
+    multVec(newTarget, 0.5f);
+    mathVecAdd(newTarget, newTarget, initState, 3);
+    calcSPS(item[ID]);
     for (int i = 0; i < 3; i++) {
-        vecm[i] = vecm[i]/2;
-        vecAtt[i] = item[ID][i+6];
+        DEBUG(("SPSpos[%d]= %f", i, SPSpos[i]));
     }
-    mathVecCross(vecy, vecAtt, vecm);
-    mathVecCross(SPSpos, vecm, vecy);
-    mathVecAdd(vecAtt, vecAtt, item[ID], 3);
-    mathVecAdd(vecm, vecm, initState, 3);
-    mathVecNormalize(SPSpos, 3);
-    multVec(SPSpos, 0.18f/startDist + 0.2f);
-    mathVecAdd(SPSpos, SPSpos, vecm, 3);
-
+    if (fabsf(SPSpos[0]) > 0.64f || fabsf(SPSpos[1]) > 0.8f || fabsf(SPSpos[2]) > 0.64f) {
+        x = 1;
+        calcSPS(newTarget);
+    }
+    
     if (game.getNumSPSHeld() == 2) {
         moveCapVelocity(SPSpos);
         if (dist(myState, SPSpos) < 0.05f) {
             game.dropSPS();
         }
-    } else {
+    } 
+    else if (x == 1 && game.getNumSPSHeld() == 1) {
+        moveCapVelocity(newTarget);
+        if (dist(myState, newTarget) < 0.05f) {
+            game.dropSPS();
+        }
+    }
+    else { 
         pickItem();
         if (game.hasItem(ID) == 1) {
             game.dropSPS();
         }
+    }
+    for (int i = 0; i < 3; i++) {
+        DEBUG(("newTarget[%d] = %f x = %d", i, newTarget[i], x));
     }
 }
 
@@ -156,7 +172,6 @@ void reachZone() {
     if (dist(item[ID], zone) < 0.04f) {
         game.dropItem();
         step++;
-        step == 1 ? ID = closestItem(0, 1) : closestItem(0, 5);
     }
 }
 
@@ -166,7 +181,7 @@ int closestItem(int x, int y) {
 
     do {
         for (int i = x; i <= y; i++) {
-            if (distance[i] < d && game.itemInZone(i) == 0 && (game.hasItem(i) != 2 || step == 3)) {
+            if (distance[i] < d && game.itemInZone(i) == 0 && game.hasItem(i) != 2) {
                 d = distance[i];
                 id = i;
             }
@@ -204,7 +219,28 @@ void multVec(float* vec, float mult) {
     vec[2] *= mult;
 }
 
-float distPR(float *pOnR, float *r, float *p){
+void calcSPS(float target[]) {
+    float startDist;
+    float vecAtt[3];
+    float vecy[3];
+    float vecm[3];
+    
+    mathVecSubtract(vecm, target, initState, 3);
+    startDist = mathVecMagnitude(vecm, 3);
+    for (int i = 0; i < 3; i++) {
+        vecm[i] = vecm[i]/2;
+        vecAtt[i] = item[ID][i+6];
+    }
+    mathVecCross(vecy, vecAtt, vecm);
+    mathVecCross(SPSpos, vecm, vecy);
+    mathVecAdd(vecAtt, vecAtt, item[ID], 3);
+    mathVecAdd(vecm, vecm, initState, 3);
+    mathVecNormalize(SPSpos, 3);
+    multVec(SPSpos, 0.18f/startDist + 0.2f);
+    mathVecAdd(SPSpos, SPSpos, vecm, 3);
+}
+
+float distPR(float *pOnR, float *r, float *p) {
     float d = 0;
     d = -r[0]*p[0] - r[1]*p[1] - r[2]*p[2];
     float t = (-r[0]*pOnR[0]-r[1]*pOnR[1]-r[2]*pOnR[2] - d)/(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
