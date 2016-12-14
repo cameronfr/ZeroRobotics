@@ -14,16 +14,11 @@ float distanceSPS;
 int t;
 int step;
 int ID;
-char c;
+int firstItem;
 
 void init() {
     step = 0;
     api.getMyZRState(initState);
-    if (initState[1] > 0) {
-        c = 1;
-    } else {
-        c = -1;
-    }
     game.dropSPS();
 }
 
@@ -49,18 +44,18 @@ void loop() {
     }
 
     if (step == 0) {
-        ID = closestItem(0, 1);
+        ID = firstItem = closestItem(2, 3);
         placeSPS();
     }
     else if (step == 1) {
-        ID = closestItem(0, 1);
         pickItem();
     }
     else {
-        ID = closestItem(0, 5);
-        pickItem();
+        moveCapVelocity(zone);
     }
-    DEBUG(("step = %d; ID = %d", step, ID));
+
+    //DEBUG(("step = %d; ID = %d", step, ID));
+    DEBUG(("s = %d; i = %d", step, ID)); //gara
 }
 
 void placeSPS() {
@@ -72,14 +67,12 @@ void placeSPS() {
     multVec(newTarget, 0.5f);
     mathVecAdd(newTarget, newTarget, initState, 3);
     calcSPS(item[ID]);
-    for (int i = 0; i < 3; i++) {
-        DEBUG(("SPSpos[%d]= %f", i, SPSpos[i]));
-    }
     if (fabsf(SPSpos[0]) > 0.64f || fabsf(SPSpos[1]) > 0.8f || fabsf(SPSpos[2]) > 0.64f) {
         x = 1;
         calcSPS(newTarget);
     }
     
+    api.setAttitudeTarget(vec[ID]);
     if (game.getNumSPSHeld() == 2) {
         moveCapVelocity(SPSpos);
         if (dist(myState, SPSpos) < 0.05f) {
@@ -98,9 +91,7 @@ void placeSPS() {
             game.dropSPS();
         }
     }
-    for (int i = 0; i < 3; i++) {
-        DEBUG(("newTarget[%d] = %f x = %d", i, newTarget[i], x));
-    }
+    DEBUG(("x = %d", x)); //gara
 }
 
 void pickItem() {
@@ -112,7 +103,6 @@ void pickItem() {
     float A[3];
     float cosalpha = 0;
 
-    //dmax = dimn = 0 if ID == 7 || ID == 8
     if (ID <= 1) {
         dmax = 0.173f;
         dmin = 0.151f;
@@ -126,7 +116,6 @@ void pickItem() {
         dmin = 0.124f;
     }
     
-    //has case for ID == 6 in special item strategy  
     if (game.hasItem(ID) == 0) {
         for (int i = 0; i < 3; i++) {
             vecAtt[i] = item[ID][i+6];
@@ -141,7 +130,7 @@ void pickItem() {
             target[i] *= ((dmax+dmin)/2)+0.05f;
         }
         mathVecAdd(target, target, item[ID], 3);
-        if (mathVecMagnitude(A, 3) > 0.22f) {
+        if (mathVecInner(vec[ID], A, 3) > mathVecMagnitude(A, 3)) {
             moveCapVelocity(target);
         } else {
             moveCapVelocity(vecAtt);
@@ -172,6 +161,16 @@ void reachZone() {
     if (dist(item[ID], zone) < 0.04f) {
         game.dropItem();
         step++;
+        if (step == 1) {
+            for (int i = 5; i >= 0; i--) {
+                if (game.hasItemBeenPickedUp(i) == 1 && i != firstItem) {
+                    ID = i;
+                }
+            }
+            if (ID == firstItem) {
+                ID = closestItem(0, 1);
+            }
+        }
     }
 }
 
@@ -180,7 +179,7 @@ int closestItem(int x, int y) {
     float d = 20;
 
     do {
-        for (int i = x; i <= y; i++) {
+        for (int i = y; i >= x; i--) {
             if (distance[i] < d && game.itemInZone(i) == 0 && game.hasItem(i) != 2) {
                 d = distance[i];
                 id = i;
@@ -240,10 +239,10 @@ void calcSPS(float target[]) {
     mathVecAdd(SPSpos, SPSpos, vecm, 3);
 }
 
-float distPR(float *pOnR, float *r, float *p) {
+/*float distPR(float *pOnR, float *r, float *p) {
     float d = 0;
     d = -r[0]*p[0] - r[1]*p[1] - r[2]*p[2];
     float t = (-r[0]*pOnR[0]-r[1]*pOnR[1]-r[2]*pOnR[2] - d)/(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
     float p_p[] = {pOnR[0] + r[0]*t, pOnR[1] + r[1]*t, pOnR[2] + r[2]*t };
     return sqrtf( (p_p[0] - p[0])*(p_p[0] - p[0])+ (p_p[1] - p[1])*(p_p[1] - p[1]) +(p_p[2] - p[2])*(p_p[2] - p[2]));
-}
+}*/
