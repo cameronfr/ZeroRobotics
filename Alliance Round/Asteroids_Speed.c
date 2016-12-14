@@ -17,6 +17,7 @@ typedef struct {
 
 int targetItemID;
 float secondSPSPos[3];
+bool guardZone; //triggered when fuel is low at zone
 
 gameState state;
 
@@ -26,7 +27,7 @@ void init() {
     api.getMyZRState(state.initState);
     state.startSide = sign(state.myState[1]);
     game.dropSPS();
-    targetItemID = chooseItem(0,1);
+    guardZone = false;
 }
 
 void loop() {
@@ -54,41 +55,37 @@ void loop() {
 
     //Strategy:
     if (state.numSPSHeld == 2) {
+      targetItemID = chooseItem(true);
       calcSPSPosition(secondSPSPos);
-      //targetItemID = chooseItem(); already in init code so not needed here
       placeSPSUnits();
     }
     else {
       if (game.hasItem(targetItemID) == 0) {
-        targetItemID = chooseItem(0,1);
-        pickupItem(targetItemID);
+        if(!guardZone) {
+            pickupItem(targetItemID);
+        }
+        else {
+            api.setPositionTarget(state.zonePos);
+        }
       }
       else if (game.hasItem(targetItemID) == 1) {
         if (state.numSPSHeld == 1) game.dropSPS();
+        //TODO: if cube is not held by opponent or in a zone, go by the initial position not the current position (i.e., dont chase moving cubes)
         reachZone();
+        
         //TODO: also check if attitude is lined up
-        if (dist(state.itemPos[targetItemID],state.zonePos) < 0.04f) {
+        if (dist(state.itemPos[targetItemID],state.zonePos) < 0.03f) {
             game.dropItem();
+            targetItemID = chooseItem(false);
+            DEBUG(("FUEL: %f",game.getFuelRemaining()));
+            if(game.getFuelRemaining() < 10 || game.itemInZone(2) || game.itemInZone(3)) {
+                guardZone = true;
+            }
             //TODO: if less than 10% fuel, stay here
         }
       }
     }
 
-    //Old strategy code
-
-    /*if (step == 0) {
-        ID = closestItem(0, 1);
-        placeSPS();
-    }
-    else if (step == 1) {
-        ID = closestItem(0, 1);
-        pickItem();
-    }
-    else {
-        ID = closestItem(0, 5);
-        pickItem();
-    }
-    DEBUG(("step = %d; ID = %d", step, ID));*/
 }
 
 void placeSPSUnits() {
@@ -99,32 +96,87 @@ void placeSPSUnits() {
       secondSPSPos[1] = 0.5;
       secondSPSPos[2] = 0.5;*/
       moveCapVelocity(secondSPSPos);
-      if (dist(state.myState,secondSPSPos) < 0.05f) {
+      if (dist(state.myState,secondSPSPos) < 0.03f) {
         game.dropSPS();
       }
     }
 
 }
 
-//TODO: more efficient SPS positioning: don't need 0.05 error
-void calcSPSPosition(float SPSpos[3]) {
-    float startDist;
-    float vecAtt[3];
+
+//TODO: this SPS error isn't constant and I can't figure out why
+//TODO: check if location is out of bounds, try negative 
+void calcSPSPositionOld(float SPSpos[3]) {
+    
+    //note: really olny needs to be orthagonal to path vector
+    
+    float targetPos[3];
+    float itemAtt[3];
+    float vecToTarget[3];
+    
+     for (int i = 0; i < 3; i++) {
+        targetPos[i] = state.itemPos[targetItemID][i+6];
+        itemAtt[i] = state.itemPos[targetItemID][i+6];
+    }
+    
+    multVec(targetPos,0.15*1.1f);
+    mathVecAdd(targetPos,targetPos,state.itemPos[targetItemID],3);
+    mathVecSubtract(vecToTarget,targetPos,state.initState,3);
+    mathVecCross(SPSpos,vecToTarget,itemAtt);
+    float distToTarget = mathVecMagnitude(vecToTarget,3);
+    //DEBUG(("TARGET POS %f %f %f",targetPos[0],targetPos[1],targetPos[2]));
+    //DEBUG(("VEC TO TARGET %f %f %f",vecToTarget[0],vecToTarget[1],vecToTarget[2]));
+    //DEBUG(("ITEM ATT %f %f %f",itemAtt[0],itemAtt[1],itemAtt[2]));
+    //DEBUG(("CROSS PROD %f %f %f",SPSpos[0],SPSpos[1],SPSpos[2]));
+    mathVecNormalize(SPSpos,3);
+    multVec(SPSpos,(0.2f/distToTarget));
+    mathVecAdd(SPSpos,SPSpos,targetPos,3);
+    
+}
+
+void calcSPSPosition(float SPSpos[]) {
+    
+    /*float vecAtt[3];
     float vecy[3];
     float vecm[3];
-
-    mathVecSubtract(vecm, state.itemPos[targetItemID], state.initState, 3);
+    
+    mathVecSubtract(vecm, target, initState, 3);
     startDist = mathVecMagnitude(vecm, 3);
     for (int i = 0; i < 3; i++) {
+        vecm[i] = vecm[i]/2;
+        vecAtt[i] = item[ID][i+6];
+    }
+    mathVecCross(vecy, vecAtt, vecm);
+    mathVecCross(SPSpos, vecm, vecy);
+    mathVecAdd(vecAtt, vecAtt, item[ID], 3);
+    mathVecAdd(vecm, vecm, initState, 3);
+    mathVecNormalize(SPSpos, 3);
+    multVec(SPSpos, 0.18f/startDist + 0.2f);
+    mathVecAdd(SPSpos, SPSpos, vecm, 3);*/
+    
+    
+    float startDist;
+    float vecAtt[3];
+    float target[3];
+    float vecy[3];
+    float vecm[3];
+    
+    for (int i = 0; i < 3; i++) {
+        target[i] = state.itemPos[targetItemID][i+6];
         vecAtt[i] = state.itemPos[targetItemID][i+6];
     }
+    
+    multVec(target,0.15*1.1f);
+    mathVecAdd(target,target,state.itemPos[targetItemID],3);
+    mathVecSubtract(vecm,target,state.initState,3);
+    startDist = mathVecMagnitude(vecm, 3);
     multVec(vecm,0.5f);
     mathVecCross(vecy, vecAtt, vecm);
     mathVecCross(SPSpos, vecm, vecy);
-    mathVecAdd(vecAtt, vecAtt, state.itemPos[targetItemID], 3);
+    //mathVecAdd(vecAtt, vecAtt, state.itemPos[targetItemID], 3);
     mathVecAdd(vecm, vecm, state.initState, 3);
     mathVecNormalize(SPSpos, 3);
-    multVec(SPSpos, 0.18f/startDist + 0.2f);
+    multVec(SPSpos, 0.2f/startDist);
     mathVecAdd(SPSpos, SPSpos, vecm, 3);
 }
 
@@ -157,7 +209,8 @@ void pickupItem(int ID) {
         orthagComponent[i] = state.itemPos[ID][i+6];
     }
 
-    multVec(targetPos,((dmin+dmax)/2));
+   // multVec(targetPos,((dmin+dmax)/2));
+    multVec(targetPos,dmin*1.1f);
     mathVecAdd(targetPos,targetPos,state.itemPos[ID],3);
     mathVecSubtract(vecToTarget,state.myState,targetPos,3);
 
@@ -165,9 +218,9 @@ void pickupItem(int ID) {
     //distance between position and plane of correct face of item
     float D = mathVecInner(itemAtt,targetPos,3);
     float pointPlaneDist = mathVecInner(itemAtt,state.myState,3)-D;
-    //DEBUG(("point plane dist %f",pointPlaneDist));
+    DEBUG(("point plane dist %f",pointPlaneDist));
 
-    if (pointPlaneDist < -0.2f) {
+    if (pointPlaneDist < -0.05f/*-0.2f*/) {
         float target[3];
         //projection of the distance vec (sattelite -> item) onto plane of correct face of item
         //http://maplecloud.maplesoft.com/application.jsp?appId=5641983852806144
@@ -175,7 +228,7 @@ void pickupItem(int ID) {
         multVec(orthagComponent,mathVecInner(itemAtt,vecToTarget,3)/(mathVecMagnitude(itemAtt,3)));
         mathVecSubtract(projVecPlane,vecToTarget,orthagComponent,3);
         mathVecNormalize(projVecPlane,3);
-        multVec(projVecPlane,dmax * 1.02f);
+        multVec(projVecPlane,dmin * 1.15f);
         mathVecAdd(target,targetPos,projVecPlane,3);
         moveCapVelocity(target);
     }
@@ -192,64 +245,6 @@ void pickupItem(int ID) {
 
 }
 
-/*
-void pickItemOld() {
-    float dmax;
-    float dmin;
-    float vecAtt[3];
-    float a[3];
-    float target[3];
-    float A[3];
-    float cosalpha = 0;
-
-    //dmax = dimn = 0 if ID == 7 || ID == 8
-    if (ID <= 1) {
-        dmax = 0.173f;
-        dmin = 0.151f;
-    }
-    else if (ID == 2 || ID == 3) {
-        dmax = 0.160f;
-        dmin = 0.138f;
-    }
-    else {
-        dmax = 0.146f;
-        dmin = 0.124f;
-    }
-
-    //has case for ID == 6 in special item strategy
-    if (game.hasItem(ID) == 0) {
-        for (int i = 0; i < 3; i++) {
-            vecAtt[i] = item[ID][i+6];
-            vecAtt[i] *= (dmin+dmax)/2;
-            a[i] = -vec[ID][i];
-            target[i] = (a[i]+vecAtt[i])/2;
-        }
-        mathVecAdd(vecAtt, vecAtt, item[ID], 3);
-        mathVecSubtract(A, vecAtt, myState, 3);
-        mathVecNormalize(target, 3);
-        for (int i = 0; i < 3; i++) {
-            target[i] *= ((dmax+dmin)/2)+0.05f;
-        }
-        mathVecAdd(target, target, item[ID], 3);
-        if (mathVecMagnitude(A, 3) > 0.22f) {
-            moveCapVelocity(target);
-        } else {
-            moveCapVelocity(vecAtt);
-        }
-        api.setAttitudeTarget(vec[ID]);
-        cosalpha = mathVecInner(myAtt, vec[ID], 3)/(mathVecMagnitude(myAtt, 3)*mathVecMagnitude(vec[ID], 3));
-        if (distance[ID] < dmax && mathVecMagnitude(myVel, 3) < 0.01f && cosalpha > 0.97f && game.isFacingCorrectItemSide(ID)) {
-            game.dockItem(ID);
-        }
-        if (distance[ID] < dmin) {
-            api.setForces(a);
-        }
-    } else {
-        reachZone();
-    }
-}
-*/
-
 void reachZone() {
     float zoneTargetPos[3];
     mathVecSubtract(zoneTargetPos, state.myState, state.zonePos, 3);
@@ -263,27 +258,61 @@ void reachZone() {
 //TODO: if vel of item too high, don't go for it
 //also implement going for smaller items later
 //general strategy of not stealing: getting in items as fast as possible
-int chooseItem(int x, int y) {
-    int id = -1;
-    float d = 20;
-
-    do {
-        for (int i = x; i <= y; i++) {
-            if (state.distanceToItem[i] < d && game.itemInZone(i) == 0 && game.hasItem(i) != 2) {
-                d = state.distanceToItem[i];
-                id = i;
-            }
+//TODO: use the distance to the position we have to get to, not the position of the center of the cube
+//TODO:HEURISTIC:if initial yellow cube is too close, go for red cube (bcz SPS placement wont work)
+int chooseItem(bool isStart) {
+    float CLOSE_CUBE_THRESH = 0.3;
+    //1. check if open yellow cube (not in anyones zone or docked)
+    //2. check for close red cubes
+    //3. yellow cube in other zone or docked
+    
+    //1. Go for the closer yellow cube at the start
+    if (isStart) {
+        int item;
+        float d0 = state.distanceToItem[0];
+        float d1 = state.distanceToItem[1];
+        
+        //DEBUG(("D0 %f D1 %f",d0,d1));
+        if (d0 < d1) {item = 0;}
+        else {item = 1;}
+        DEBUG(("DIST TO YELLOW CUBE %f",state.distanceToItem[item]));
+        if (!(state.distanceToItem[item]<0.2)) {
+            return item;
         }
-        x = 0;
-        y = 5;
-        d = 20;
-    } while (id == -1 /*&& step != 3*/);
+    }
+    
+    //2. If there are any medium cubes close to the zone, go for those
+    for (int i =0;i<2;i++) {
+        DEBUG(("DISTANCE TO RED CUBE %f",state.distanceToItem[i+2]));
+        if (state.distanceToItem[i+2] < CLOSE_CUBE_THRESH && game.itemInZone(i+2) == 0 && game.hasItem(i+2)!=2) {
+            return i+2;
+        }
+    }
+    
+    //3. Go for yellow cube in opponents zone
+    for (int i =0;i<2;i++) {
+        if (game.itemInZone(i) == 0) {
+            return i;
+        }
+    }
+    
+    return 5;
+    
+    
+    /*float d = 20;
 
-    return id;
+    for (int i = x; i <= y; i++) {
+        if (state.distanceToItem[i] < d && game.itemInZone(i) == 0 && game.hasItem(i) != 2) {
+            d = state.distanceToItem[i];
+            id = i;
+        }
+    }
+
+    return id;*/
 }
 
 
-void moveCapVelocityOld(float *whereTo){
+void moveCapVelocitySlow(float *whereTo){
     if (dist(state.myState, whereTo) < 0.15f){
         api.setPositionTarget(whereTo);
     }
@@ -297,42 +326,40 @@ void moveCapVelocityOld(float *whereTo){
 }
 
 
+//Note: tested with and without currentMassFactor, doesn't make a huge difference
 void moveCapVelocity(float destPosition[3]) {
     float MAX_SPEED = 0.065;//0.041;// 0.04; //max speed that should be obtained
     float ACCELERATION_FACTOR = 1;//1; //what percentage of max accel should we accel at
-    float SAT_MASS = 4.75 * currentMassFactor(); //normal mass in kg -- used for finding force to apply
-    float SAT_MAX_ACCEL = 0.008 / currentMassFactor(); //how fast the sat can decelerate at normal mass
-    float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things
-    float ZERO_VEL_DIST_THRESH = 0.005; //when to switch to zeroing velocity instead of accelerating
+    float SAT_MASS = 4.75;// * currentMassFactor(); //normal mass in kg -- used for finding force to apply
+    float SAT_MAX_ACCEL = 0.008;// / currentMassFactor(); //how fast the sat can decelerate at normal mass
+    float SAT_MAX_DECEL = 0.008*0.7; // because we don't use mass factor anymore
+    float MIN_MIN_DIST = 0.01;          //to prevent random movement from effecting things: don't accelerate if we're a little bit off
+    //float ZERO_VEL_DIST_THRESH = 0.005; //when to switch to zeroing velocity instead of accelerating
 
     float directionVec[3];
-    float directionVecNorm[3];
     mathVecSubtract(directionVec, destPosition, state.myState,3);
-    mathVecSubtract(directionVecNorm, destPosition, state.myState,3);
-    mathVecNormalize(directionVecNorm,3);
 
     float force[3];
     for (int i = 0; i < 3; i++) {
 
         //Factor that describes speed/accel in relation to other dimensions (i.e., keep vel / accel prop to dist)
-        float PROPORTIONAL_FACTOR = fabsf(directionVecNorm[i]);
-        float DIM_MAX_SPEED = MAX_SPEED * PROPORTIONAL_FACTOR;
+        float PROPORTIONAL_FACTOR = fabsf(directionVec[i]) / mathVecMagnitude(directionVec,3);//fabsf(directionVecNorm[i]);
 
         //Calculate both what we woud accel and decel the sattelite at (which we use depends on min_dist)
         float est_accel = sign(directionVec[i])*ACCELERATION_FACTOR*PROPORTIONAL_FACTOR*SAT_MAX_ACCEL;
         float est_decel = - sign(state.myVel[i]) * (mathSquare(state.myVel[i])/(2*fabsf(directionVec[i])));
 
         //Calculate the distance at which we need to start decelerating
-        float naive_min_dist = mathSquare(fabsf(state.myVel[i]) + fabsf(est_accel)) / (2 * SAT_MAX_ACCEL); //v = v_current + a*(1 timestep ahead)
-        float MIN_DIST = (naive_min_dist)+(fabsf(state.myVel[i])+0.5*fabsf(est_accel));// dist + v_o*t + 0.5*a*t^2
-        MIN_DIST = MIN_MIN_DIST > MIN_DIST ? MIN_MIN_DIST : MIN_DIST; //take min of min_dist and min_min_dist
+        float naive_min_dist = mathSquare(fabsf(state.myVel[i]) + fabsf(est_accel)) / (2 * SAT_MAX_DECEL); //v = v_current + a*(1 timestep ahead)
+        float min_dist = (naive_min_dist)+(fabsf(state.myVel[i])+0.5*fabsf(est_accel));// dist + v_o*t + 0.5*a*t^2
+        min_dist = MIN_MIN_DIST > min_dist ? MIN_MIN_DIST : min_dist; //take min of min_dist and min_min_dist
 
-        float distance = fabsf(directionVec[i]);
-        if (distance < ZERO_VEL_DIST_THRESH) {
+        
+        /*if (fabsf(directionVec[i]) < ZERO_VEL_DIST_THRESH) {
             force[i] = - state.myVel[i];
-        } else if (distance < MIN_DIST) {
+        } else */if (fabsf(directionVec[i]) < min_dist) {
             force[i] = est_decel;
-        } else if (fabsf(state.myVel[i]) < DIM_MAX_SPEED || sign(state.myVel[i])!=sign(directionVec[i])) {
+        } else if (fabsf(state.myVel[i]) < MAX_SPEED * PROPORTIONAL_FACTOR || sign(state.myVel[i])!=sign(directionVec[i])) {
             force[i] = est_accel;
         } else {
             force[i] = 0;
@@ -350,6 +377,7 @@ void moveCapVelocity(float destPosition[3]) {
         toArray[i] = fromArray[from+i];
     }
 }*/
+
 
 float currentMassFactor() {
     switch(game.getNumSPSHeld()) {
