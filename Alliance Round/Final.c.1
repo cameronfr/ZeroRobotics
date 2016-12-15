@@ -57,7 +57,7 @@ void loop() {
         pickItem();
     }
     else {
-        moveCapVelocity(zone);
+        defendZone();
     }
 
     //DEBUG(("step = %d; ID = %d", step, ID));
@@ -221,9 +221,7 @@ void pickItem() {
     } else {
         reachZone();
     }
-
 }
-
 
 void reachZone() {
     float vecZoneToMe[3];
@@ -249,6 +247,18 @@ void reachZone() {
             }
         }
     }
+}
+
+void defendZone() {
+    float otherState[12];
+    float vecD[3];
+    
+    api.getOtherZRState(otherState);
+    mathVecSubtract(vecD, otherState, zone, 3);
+    mathVecNormalize(vecD, 3);
+    multVec(vecD, 0.1f);
+    mathVecAdd(vecD, vecD, zone, 3);
+    moveCapVelocity(vecD);
 }
 
 int closestItem(int x, int y) {
@@ -315,3 +325,11 @@ void calcSPS(float target[]) {
     multVec(SPSpos, 0.18f/startDist + 0.2f);
     mathVecAdd(SPSpos, SPSpos, vecm, 3);
 }
+
+/*float distPR(float *pOnR, float *r, float *p) {
+    float d = 0;
+    d = -r[0]*p[0] - r[1]*p[1] - r[2]*p[2];
+    float t = (-r[0]*pOnR[0]-r[1]*pOnR[1]-r[2]*pOnR[2] - d)/(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+    float p_p[] = {pOnR[0] + r[0]*t, pOnR[1] + r[1]*t, pOnR[2] + r[2]*t };
+    return sqrtf( (p_p[0] - p[0])*(p_p[0] - p[0])+ (p_p[1] - p[1])*(p_p[1] - p[1]) +(p_p[2] - p[2])*(p_p[2] - p[2]));
+}*/
