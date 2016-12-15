@@ -122,7 +122,7 @@ void pickItemOld() {
         dmin = 0.124f;
     }
     
-    if (game.hasItem(ID) == 0) {
+    if (game.hasItem(ID) != 1) {
         for (int i = 0; i < 3; i++) {
             vecAtt[i] = item[ID][i+6];
             vecAtt[i] *= (dmin+dmax)/2;
