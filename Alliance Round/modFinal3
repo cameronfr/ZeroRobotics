@@ -62,8 +62,7 @@ void placeSPS() {
     float newTarget[3];
 
     mathVecSubtract(newTarget, item[ID], initState, 3);
-    mathVecNormalize(newTarget, 3);
-    multVec(newTarget, 0.5f);
+    multVec(newTarget, 0.5f, 1);
     mathVecAdd(newTarget, newTarget, initState, 3);
     if (OOB == 1) {
         calcSPS(newTarget);
@@ -172,9 +171,9 @@ void pickItem() {
             targetPos[i] = itemAtt[i] = orthagComponent[i] = item[ID][i+6];
         }
         
-        multVec(targetPos,dmin+(dmax-dmin)*0.3f);
-        mathVecAdd(targetPos,targetPos,item[ID],3);
-        mathVecSubtract(vecToTarget,myState,targetPos,3);
+        multVec(targetPos, dmin+(dmax-dmin)*0.3f, 0);
+        mathVecAdd(targetPos, targetPos, item[ID],3);
+        mathVecSubtract(vecToTarget, myState, targetPos,3);
     
         //this value if is positive if we need to go around the item
         //distance between position and plane of correct face of item
@@ -189,17 +188,16 @@ void pickItem() {
             //projection of the distance vec (sattelite -> item) onto plane of correct face of item
             //http://maplecloud.maplesoft.com/application.jsp?appId=5641983852806144
             float projVecPlane[3];
-            multVec(orthagComponent,mathVecInner(itemAtt,vecToTarget,3)/(mathVecMagnitude(itemAtt,3)));
+            multVec(orthagComponent, mathVecInner(itemAtt,vecToTarget,3)/(mathVecMagnitude(itemAtt,3)), 0);
             mathVecSubtract(projVecPlane,vecToTarget,orthagComponent,3);
-            mathVecNormalize(projVecPlane,3);
-            multVec(projVecPlane,dmin * 1.15f);
+            multVec(projVecPlane, dmin * 1.15f, 1);
             mathVecAdd(target,targetPos,projVecPlane,3);
             moveCapVelocity(target);
         }
         else {
             moveCapVelocity(targetPos);
         }
-        multVec(itemAtt, -1.0f);
+        multVec(itemAtt, -1.0f, 0);
         api.setAttitudeTarget(itemAtt);
     
         float cosalpha = mathVecInner(myAtt, vec[ID], 3)/(mathVecMagnitude(myAtt, 3)*distance[ID]);
@@ -245,8 +243,7 @@ void defendZone() {
     
     api.getOtherZRState(otherState);
     mathVecSubtract(vecD, otherState, zone, 3);
-    mathVecNormalize(vecD, 3);
-    multVec(vecD, 0.1f);
+    multVec(vecD, 0.1f, 1);
     mathVecAdd(vecD, vecD, zone, 3);
     moveCapVelocity(vecD);
 }
@@ -277,8 +274,7 @@ void moveCapVelocity(float *whereTo){
     else{
         float v[3];
         mathVecSubtract(v, whereTo, myState, 3);
-        mathVecNormalize(v, 3);
-        multVec(v, 0.041f);
+        multVec(v, 0.041f, 1);
         api.setVelocityTarget(v);
     }
 }
@@ -289,7 +285,10 @@ float dist(float *a, float *b) {
     return mathVecMagnitude(sub,3);
 }
 
-void multVec(float* vec, float mult) {
+void multVec(float* vec, float mult, bool pl) {
+    if(pl == 1){
+        mathVecNormalize(vec,3);
+    }
     vec[0] *= mult;
     vec[1] *= mult;
     vec[2] *= mult;
@@ -307,14 +306,13 @@ void calcSPS(float target[]) {
         vecm[i] = vecm[i]/2.0f;
         vecAtt[i] = item[ID][i+6];
     }*/
-    multVec(vecm, 0.5f);
+    multVec(vecm, 0.5f, 0);
     memcpy(vecAtt, &item[ID][6], sizeof(vecAtt));
     mathVecCross(vecy, vecAtt, vecm);
     mathVecCross(SPSpos, vecm, vecy);
     mathVecAdd(vecAtt, vecAtt, item[ID], 3);
     mathVecAdd(vecm, vecm, initState, 3);
-    mathVecNormalize(SPSpos, 3);
-    multVec(SPSpos, 0.18f/startDist + 0.2f);
+    multVec(SPSpos, 0.18f/startDist + 0.2f, 1);
     mathVecAdd(SPSpos, SPSpos, vecm, 3);
 }
 
@@ -323,7 +321,7 @@ void sbocciaItem () {
     float otherZone[3];
     
     memcpy(otherZone, zone, 3*sizeof(float));
-    multVec(otherZone, -1.0f);
+    multVec(otherZone, -1.0f, 0);
     DEBUG(("dist=%f",dist(item[ID], otherZone)));
     if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f && api.getTime() > 130) {
         mathVecSubtract(vecOtherZone, myState, otherZone, 3);
