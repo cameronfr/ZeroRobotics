@@ -322,8 +322,8 @@ void sbocciaItem () {
     float vecOtherZone[3];
     float otherZone[3];
     
-    memcpy(otherZone, zone, sizeof(float));
-    multVec(otherZone, -1);
+    memcpy(otherZone, zone, 3*sizeof(float));
+    multVec(otherZone, -1.0f);
     DEBUG(("dist=%f",dist(item[ID], otherZone)));
     if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f) {
         mathVecSubtract(vecOtherZone, myState, otherZone, 3);
