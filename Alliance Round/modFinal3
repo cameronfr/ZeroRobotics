@@ -104,7 +104,7 @@ void pickItemOld() {
         dmax = 0.173f;
         dmin = 0.151f;
     }
-    else if (ID == 2 || ID == 3) {
+    else if (ID <= 3) {
         dmax = 0.160f;
         dmin = 0.138f;
     }
@@ -157,7 +157,7 @@ void pickItem() {
         dmax = 0.173f;
         dmin = 0.151f;
     }
-    else if (ID == 2 || ID == 3) {
+    else if (ID <= 3) {
         dmax = 0.160f;
         dmin = 0.138f;
     }
@@ -169,12 +169,10 @@ void pickItem() {
     if (game.hasItem(ID) != 1) {
         
         for (int i = 0; i < 3; i++) {
-            targetPos[i] = item[ID][i+6];
-            itemAtt[i] = item[ID][i+6];
-            orthagComponent[i] = item[ID][i+6];
+            targetPos[i] = itemAtt[i] = orthagComponent[i] = item[ID][i+6];
         }
-    
-        multVec(targetPos,dmin+(dmax-dmin)*0.3);
+        
+        multVec(targetPos,dmin+(dmax-dmin)*0.3f);
         mathVecAdd(targetPos,targetPos,item[ID],3);
         mathVecSubtract(vecToTarget,myState,targetPos,3);
     
@@ -201,7 +199,7 @@ void pickItem() {
         else {
             moveCapVelocity(targetPos);
         }
-        multVec(itemAtt,-1);
+        multVec(itemAtt, -1.0f);
         api.setAttitudeTarget(itemAtt);
     
         float cosalpha = mathVecInner(myAtt, vec[ID], 3)/(mathVecMagnitude(myAtt, 3)*distance[ID]);
@@ -305,10 +303,12 @@ void calcSPS(float target[]) {
     
     mathVecSubtract(vecm, target, initState, 3);
     startDist = mathVecMagnitude(vecm, 3);
-    for (int i = 0; i < 3; i++) {
+    /*for (int i = 0; i < 3; i++) {
         vecm[i] = vecm[i]/2.0f;
         vecAtt[i] = item[ID][i+6];
-    }
+    }*/
+    multVec(vecm, 0.5f);
+    memcpy(vecAtt, &item[ID][6], sizeof(vecAtt));
     mathVecCross(vecy, vecAtt, vecm);
     mathVecCross(SPSpos, vecm, vecy);
     mathVecAdd(vecAtt, vecAtt, item[ID], 3);
@@ -322,9 +322,8 @@ void sbocciaItem () {
     float vecOtherZone[3];
     float otherZone[3];
     
-    for (int i = 0; i < 3; i++) {
-        otherZone[i] = -zone[i];
-    }
+    memcpy(otherZone, zone, sizeof(float));
+    multVec(otherZone, -1);
     DEBUG(("dist=%f",dist(item[ID], otherZone)));
     if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f) {
         mathVecSubtract(vecOtherZone, myState, otherZone, 3);
@@ -337,11 +336,3 @@ void sbocciaItem () {
         reachZone();
     }    
 }
-
-/*float distPR(float *pOnR, float *r, float *p) {
-    float d = 0;
-    d = -r[0]*p[0] - r[1]*p[1] - r[2]*p[2];
-    float t = (-r[0]*pOnR[0]-r[1]*pOnR[1]-r[2]*pOnR[2] - d)/(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-    float p_p[] = {pOnR[0] + r[0]*t, pOnR[1] + r[1]*t, pOnR[2] + r[2]*t };
-    return sqrtf( (p_p[0] - p[0])*(p_p[0] - p[0])+ (p_p[1] - p[1])*(p_p[1] - p[1]) +(p_p[2] - p[2])*(p_p[2] - p[2]));
-}*/
