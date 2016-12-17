@@ -325,7 +325,7 @@ void sbocciaItem () {
     memcpy(otherZone, zone, 3*sizeof(float));
     multVec(otherZone, -1.0f);
     DEBUG(("dist=%f",dist(item[ID], otherZone)));
-    if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f) {
+    if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f && api.getTime() > 130) {
         mathVecSubtract(vecOtherZone, myState, otherZone, 3);
         api.setAttitudeTarget(vecOtherZone);
         if (dist(item[ID], otherZone) > 0.13f) {
