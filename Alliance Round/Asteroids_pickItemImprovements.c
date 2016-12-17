@@ -72,64 +72,22 @@ void pickItem() {
     }
 }
 
-//1. Modified 'rotate around item'
-//modified so that attitude is always set to the right attitude
-void pickItem() {
-    float dmax;
-    float dmin;
-    float vecAtt[3];
-    float a[3];
-    float target[3];
-    float A[3];
-    float cosalpha = 0;
-    float dirAtt[3]; //THIS LINE ADDED
-
-    //dmax = dimn = 0 if ID == 7 || ID == 8
-    if (ID <= 1) {
-        dmax = 0.173f;
-        dmin = 0.151f;
+//2. move cap velocity with dynamic stopping distance
+void moveCapVelocity(float *whereTo){
+    float vel = mathVecMagnitude(myVel,3)+0.008;//what vel might be next timestep
+    float minDist = (vel*vel)/(2*0.008);//when to start decel (i.e. using setPositionTarget), from v_f^2=v_i^2+2ad
+    minDist += mathVecMagnitude(myVel,3) + 0.004; //accounting for what dist would be next timestep
+    DEBUG(("min distance %f",minDist));
+    
+    if (dist(myState, whereTo) < minDist){
+        DEBUG(("using PID"));
+        api.setPositionTarget(whereTo);
     }
-    else if (ID == 2 || ID == 3) {
-        dmax = 0.160f;
-        dmin = 0.138f;
-    }
-    else {
-        dmax = 0.146f;
-        dmin = 0.124f;
-    }
-
-    //has case for ID == 6 in special item strategy
-    if (game.hasItem(ID) == 0) {
-        for (int i = 0; i < 3; i++) {
-            vecAtt[i] = item[ID][i+6];
-            vecAtt[i] *= (dmin+dmax)/2;
-            a[i] = -vec[ID][i];
-            target[i] = (a[i]+vecAtt[i])/2;
-
-            //new
-            dirAtt[i] = -item[ID][i+6];
-        }
-        mathVecAdd(vecAtt, vecAtt, item[ID], 3);
-        mathVecSubtract(A, vecAtt, myState, 3);
-        mathVecNormalize(target, 3);
-        for (int i = 0; i < 3; i++) {
-            target[i] *= ((dmax+dmin)/2)+0.05f;
-        }
-        mathVecAdd(target, target, item[ID], 3);
-        if (mathVecMagnitude(A, 3) > 0.22f) {
-            moveCapVelocity(target);
-        } else {
-            moveCapVelocity(vecAtt);
-        }
-        api.setAttitudeTarget(dirAtt); //THIS LINE CHANGED
-        cosalpha = mathVecInner(myAtt, vec[ID], 3)/(mathVecMagnitude(myAtt, 3)*mathVecMagnitude(vec[ID], 3));
-        if (distance[ID] < dmax && mathVecMagnitude(myVel, 3) < 0.01f && cosalpha > 0.97f && game.isFacingCorrectItemSide(ID)) {
-            game.dockItem(ID);
-        }
-        if (distance[ID] < dmin) {
-            api.setForces(a);
-        }
-    } else {
-        reachZone();
+    else{
+        float v[3];
+        mathVecSubtract(v, whereTo, myState, 3);
+        mathVecNormalize(v, 3);
+        multVec(v, 0.05f);
+        api.setVelocityTarget(v);
     }
 }
