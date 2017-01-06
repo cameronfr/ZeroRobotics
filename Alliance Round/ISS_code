@@ -13,9 +13,10 @@ char step;
 char ID;
 char firstItem;
 char OOB;
+int t;
 
 void init() {
-    step = 0;
+    step = t = 0;
     api.getMyZRState(initState);
     game.dropSPS();
 }
@@ -23,7 +24,7 @@ void init() {
 void loop() {
     api.getMyZRState(myState);
     for (char i = 0; i < 9; i++) {
-        if (api.getTime() == 0) {
+        if (t == 0) {
             game.getItemZRState(initItem[i], i);
         }
         game.getItemZRState(item[i], i);
@@ -34,13 +35,13 @@ void loop() {
         game.getZone(zone);
         mathVecSubtract(vecZone, zone, myState, 3);
     }
-    if (api.getTime() == 0) {
+    if (t == 0) {
         ID = firstItem = closestItem(2, 3);
     }
     calcSPS(initItem[ID]);
     OOB = 0;
     if (fabsf(SPSpos[0]) > 0.64f || fabsf(SPSpos[1]) > 0.8f || fabsf(SPSpos[2]) > 0.64f) {
-        if (api.getTime() == 0) {
+        if (t == 0) {
             ID = firstItem = closestItem(0, 1);
         }
         OOB = 1;
@@ -58,7 +59,7 @@ void loop() {
     else {
         defendZone();
     }
-
+    t++;
 }
 
 void placeSPS() {
@@ -99,7 +100,7 @@ void pickItemOld() {
     float a[3];
     float target[3];
     float A[3];
-    float cosalpha = 0;
+    float cosalpha = 0.0f;
 
     if (ID <= 1) {
         dmax = 0.173f;
@@ -322,7 +323,7 @@ void sbocciaItem () {
     
     memcpy(otherZone, zone, 3*sizeof(float));
     multVec(otherZone, -1.0f, 0);
-    if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f && api.getTime() > 130) {
+    if (dist(item[0], otherZone)+dist(item[1], otherZone) < 0.3f && t > 130) {
         mathVecSubtract(vecOtherZone, myState, otherZone, 3);
         api.setAttitudeTarget(vecOtherZone);
         if (dist(item[ID], otherZone) > 0.13f) {
